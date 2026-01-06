@@ -4,6 +4,7 @@ use regex::Regex;
 
 use crate::error::Error;
 
+#[derive(Debug)]
 pub(crate) enum Tokens {
     Identifier(String),
     IntConstant(i64),
@@ -21,6 +22,7 @@ pub(crate) fn compile(path: &str, lex: bool, parse: bool, codegen: bool) -> Resu
     let mut code = fs::read_to_string(path).expect("failed to read in file");
     let toks = lexer(&code)?;
     if lex {
+        println!("{:?}", toks);
         return Ok(());
     }
     Ok(())
