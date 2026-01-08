@@ -1,5 +1,4 @@
 mod compile;
-
 mod error;
 use std::{
     fs,
