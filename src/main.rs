@@ -1,7 +1,8 @@
 mod compile;
 mod error;
 use std::{
-    fs,
+    fs::{self, File},
+    io::{BufWriter, Write, stderr},
     path::{Path, PathBuf},
     process::{Command, exit},
 };
@@ -29,9 +30,8 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
-    let stem = Path::new(&cli.file)
-        .file_stem()
-        .expect("failed to extract file stem");
+    let path = Path::new(&cli.file);
+    let stem = path.with_extension("");
 
     //use preprocesser, emit intermediate file
     let preprocess = Command::new("gcc")
@@ -39,7 +39,7 @@ fn main() {
         .arg("-P")
         .arg(&cli.file)
         .arg("-o")
-        .arg(PathBuf::from(stem).with_extension("i"))
+        .arg(stem.with_extension("i"))
         .output()
         .expect("failed to execute preprocessor");
     if !preprocess.status.success() {
@@ -47,20 +47,18 @@ fn main() {
     }
 
     //actually call compiler
-    let compile = compile::compile(
-        PathBuf::from(stem)
-            .with_extension("i")
-            .to_str()
-            .expect("not sure how we failed to add a file extension lmfao"),
-        cli.lex,
-        cli.parse,
-        cli.codegen,
-    );
+    let code = fs::read_to_string(stem.with_extension("i"))
+        .expect("failed to read intermediate post processing file");
+    //we can remove immedaitely since its in memory
+    let _ = fs::remove_file(stem.with_extension("i"));
+    let mut asm_file_writer =
+        BufWriter::new(File::create(stem.with_extension("s")).expect("failed to create asm file"));
+    let compile = compile::compile(&mut asm_file_writer, &code, cli.lex, cli.parse, cli.codegen);
     //dont care if removing fails
-    let _ = fs::remove_file(PathBuf::from(stem).with_extension("i"));
     match compile {
         Ok(_) => (),
         Err(e) => {
+            let _ = fs::remove_file(stem.with_extension("s"));
             eprintln!("{}", e.to_string());
             exit(1)
         }
@@ -69,13 +67,16 @@ fn main() {
     //assembler and linker
     if !cli.S && !(cli.lex || cli.parse || cli.codegen) {
         let assemble = Command::new("gcc")
-            .arg(PathBuf::from(stem).with_extension("s"))
+            .arg(stem.with_extension("s"))
             .arg("-o")
-            .arg(PathBuf::from(stem))
+            .arg(&stem)
             .output()
             .expect("failed to execute assembler and linker");
-        let _ = fs::remove_file(PathBuf::from(stem).with_extension("s"));
+        let _ = fs::remove_file(stem.with_extension("s"));
         if !assemble.status.success() {
+            stderr()
+                .write_all(&assemble.stderr)
+                .expect("failed to write assembler stage error to stderr");
             exit(1);
         }
     }
