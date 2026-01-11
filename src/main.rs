@@ -23,7 +23,10 @@ struct Cli {
     codegen: bool,
 
     #[arg(long)]
-    S: bool,
+    s: bool,
+
+    #[arg(long)]
+    tacky: bool,
 }
 
 //driver
@@ -53,7 +56,14 @@ fn main() {
     let _ = fs::remove_file(stem.with_extension("i"));
     let mut asm_file_writer =
         BufWriter::new(File::create(stem.with_extension("s")).expect("failed to create asm file"));
-    let compile = compile::compile(&mut asm_file_writer, &code, cli.lex, cli.parse, cli.codegen);
+    let compile = compile::compile(
+        &mut asm_file_writer,
+        &code,
+        cli.lex,
+        cli.parse,
+        cli.codegen,
+        cli.tacky,
+    );
     //dont care if removing fails
     match compile {
         Ok(_) => (),
@@ -65,7 +75,7 @@ fn main() {
     }
 
     //assembler and linker
-    if !cli.S && !(cli.lex || cli.parse || cli.codegen) {
+    if !cli.s && !(cli.lex || cli.parse || cli.codegen || cli.tacky) {
         let assemble = Command::new("gcc")
             .arg(stem.with_extension("s"))
             .arg("-o")
@@ -79,5 +89,7 @@ fn main() {
                 .expect("failed to write assembler stage error to stderr");
             exit(1);
         }
+    } else {
+        let _ = fs::remove_file(stem.with_extension("s"));
     }
 }

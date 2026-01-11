@@ -16,6 +16,9 @@ pub(super) enum Token {
     OpenBrace,
     ClosedBrace,
     Semicolon,
+    Tilde,
+    Hyphen,
+    DoubleHyphen,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -71,6 +74,12 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                 '{' => Token::OpenBrace,
                 '}' => Token::ClosedBrace,
                 ';' => Token::Semicolon,
+                '-' => match &input.chars().nth(1) {
+                    Some('-') => Token::DoubleHyphen,
+                    Some(_) => Token::Hyphen,
+                    None => Token::Hyphen,
+                },
+                '~' => Token::Tilde,
                 c => {
                     return Err(Error::LexerError { char: *c });
                 }

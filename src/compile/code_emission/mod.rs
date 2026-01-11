@@ -32,9 +32,9 @@ impl CodeEmitter for asm_gen::FunctionDefinition {
             asm_gen::FunctionDefinition::Function { name, instructions } => {
                 writeln!(writer, ".globl {}", name)?;
                 writeln!(writer, "{}:", name)?;
-                for instruction in instructions {
-                    instruction.emit(writer)?;
-                }
+                instructions
+                    .into_iter()
+                    .try_for_each(|instruction| instruction.emit(writer))?
             }
         }
         Ok(())
@@ -43,6 +43,7 @@ impl CodeEmitter for asm_gen::FunctionDefinition {
 
 impl CodeEmitter for asm_gen::Instruction {
     fn emit(&self, writer: &mut impl Write) -> Result<()> {
+        /*
         match self {
             asm_gen::Instruction::Mov { src, dst } => {
                 write!(writer, "  movl ")?;
@@ -54,15 +55,21 @@ impl CodeEmitter for asm_gen::Instruction {
             asm_gen::Instruction::Ret => writeln!(writer, "  ret")?,
         }
         Ok(())
+        */
+        todo!("add matching")
     }
 }
 
 impl CodeEmitter for asm_gen::Operand {
     fn emit(&self, writer: &mut impl Write) -> Result<()> {
+        /*
         match self {
             asm_gen::Operand::Imm(val) => write!(writer, "${}", val)?,
             asm_gen::Operand::Register => write!(writer, "%eax")?,
+            _ => todo!(),
         }
         Ok(())
+        */
+        todo!()
     }
 }
