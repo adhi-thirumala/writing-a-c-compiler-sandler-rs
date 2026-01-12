@@ -1,6 +1,12 @@
 mod asm_pass;
-use crate::compile::tacky;
-use crate::error::{Error, Result};
+mod replace_pseudoregisters_pass;
+mod resolve_stack_pass;
+
+use super::Result;
+use super::tacky;
+use asm_pass::parse_program;
+use replace_pseudoregisters_pass::replace_psuedoregisters;
+use resolve_stack_pass::resolve_stack;
 
 #[derive(Debug)]
 pub(super) enum Program {
@@ -22,6 +28,7 @@ pub(super) enum Instruction {
         dst: Operand,
     },
     Ret,
+    AllocateStack(i64),
     Unary {
         unary_operator: UnaryOperator,
         operand: Operand,
@@ -49,7 +56,8 @@ pub(super) enum Register {
 }
 
 pub(super) fn asm_gen(ast: tacky::Program) -> Result<Program> {
-    let program = asm_pass::parse_program(ast);
-
+    let mut program = parse_program(ast);
+    replace_psuedoregisters(&mut program);
+    resolve_stack(&mut program);
     Ok(program)
 }

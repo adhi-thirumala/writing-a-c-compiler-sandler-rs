@@ -12,10 +12,10 @@ pub(crate) enum Error {
     ParserError { expected: String, found: String },
 
     #[error("Assmebly generation failed: {0}")]
-    AsmGenError(String),
+    AsmGenError(&'static str),
 
     #[error("Code emission failed: {0}")]
-    CodeEmissionError(String),
+    CodeEmissionError(&'static str),
 
     #[error("IO error: {0}")]
     Io(io::Error),

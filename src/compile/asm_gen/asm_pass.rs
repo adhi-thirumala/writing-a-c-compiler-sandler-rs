@@ -20,10 +20,13 @@ fn parse_function(function: tacky::FunctionDefinition) -> FunctionDefinition {
 
 fn parse_instruction(instruction: tacky::Instruction) -> Vec<Instruction> {
     match instruction {
-        tacky::Instruction::Return(value) => vec![Instruction::Mov {
-            src: parse_operand(value),
-            dst: Operand::Register(Register::AX),
-        }],
+        tacky::Instruction::Return(value) => vec![
+            Instruction::Mov {
+                src: parse_operand(value),
+                dst: Operand::Register(Register::AX),
+            },
+            Instruction::Ret,
+        ],
         tacky::Instruction::UnaryOperator {
             unary_operator,
             src,

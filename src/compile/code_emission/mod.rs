@@ -1,7 +1,8 @@
 use std::io::Write;
 
-use crate::compile::asm_gen;
-use crate::error::Result;
+use super::Result;
+use super::asm_gen;
+use crate::error::Error;
 
 pub(super) fn code_emission(writer: &mut impl Write, root: asm_gen::Program) -> Result<()> {
     let result = root.emit(writer);
@@ -32,6 +33,7 @@ impl CodeEmitter for asm_gen::FunctionDefinition {
             asm_gen::FunctionDefinition::Function { name, instructions } => {
                 writeln!(writer, ".globl {}", name)?;
                 writeln!(writer, "{}:", name)?;
+                writeln!(writer, "  pushq %rbp\n  movq %rsp, %rbp")?;
                 instructions
                     .into_iter()
                     .try_for_each(|instruction| instruction.emit(writer))?
@@ -43,7 +45,6 @@ impl CodeEmitter for asm_gen::FunctionDefinition {
 
 impl CodeEmitter for asm_gen::Instruction {
     fn emit(&self, writer: &mut impl Write) -> Result<()> {
-        /*
         match self {
             asm_gen::Instruction::Mov { src, dst } => {
                 write!(writer, "  movl ")?;
@@ -52,24 +53,49 @@ impl CodeEmitter for asm_gen::Instruction {
                 dst.emit(writer)?;
                 write!(writer, "\n")?;
             }
-            asm_gen::Instruction::Ret => writeln!(writer, "  ret")?,
+            asm_gen::Instruction::Ret => writeln!(writer, "  movq %rbp, %rsp\n  popq %rbp\n  ret")?,
+            asm_gen::Instruction::AllocateStack(offset) => {
+                writeln!(writer, "  subq ${}, %rsp", offset)?
+            }
+            asm_gen::Instruction::Unary {
+                unary_operator,
+                operand,
+            } => {
+                unary_operator.emit(writer)?;
+                write!(writer, " ")?;
+                operand.emit(writer)?;
+                write!(writer, "\n")?;
+            }
         }
         Ok(())
-        */
-        todo!("add matching")
     }
 }
 
 impl CodeEmitter for asm_gen::Operand {
     fn emit(&self, writer: &mut impl Write) -> Result<()> {
-        /*
         match self {
             asm_gen::Operand::Imm(val) => write!(writer, "${}", val)?,
-            asm_gen::Operand::Register => write!(writer, "%eax")?,
-            _ => todo!(),
+            asm_gen::Operand::Register(register) => match register {
+                asm_gen::Register::AX => write!(writer, "%eax")?,
+                asm_gen::Register::R10 => write!(writer, "%r10d")?,
+            },
+            asm_gen::Operand::Psuedo(_) => {
+                return Err(Error::CodeEmissionError(
+                    "found a pseudo-operator, not supposed to",
+                ));
+            }
+            asm_gen::Operand::Stack(offset) => write!(writer, "{}(%rbp)", offset)?,
         }
         Ok(())
-        */
-        todo!()
+    }
+}
+
+impl CodeEmitter for asm_gen::UnaryOperator {
+    fn emit(&self, writer: &mut impl Write) -> Result<()> {
+        match self {
+            asm_gen::UnaryOperator::Neg => write!(writer, "  negl")?,
+            asm_gen::UnaryOperator::Not => write!(writer, "  notl")?,
+        }
+        Ok(())
     }
 }

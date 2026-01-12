@@ -41,6 +41,5 @@ pub(crate) fn compile(
         println!("{:?}", asm_ast);
         return Ok(());
     }
-    todo!("fix code emission")
-    //code_emission(writer, asm_ast)?;
+    code_emission(writer, asm_ast)
 }

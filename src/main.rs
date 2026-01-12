@@ -3,7 +3,7 @@ mod error;
 use std::{
     fs::{self, File},
     io::{BufWriter, Write, stderr},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, exit},
 };
 
@@ -89,7 +89,7 @@ fn main() {
                 .expect("failed to write assembler stage error to stderr");
             exit(1);
         }
-    } else {
+    } else if !cli.s {
         let _ = fs::remove_file(stem.with_extension("s"));
     }
 }
