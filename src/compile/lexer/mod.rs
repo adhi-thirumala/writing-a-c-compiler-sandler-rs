@@ -19,6 +19,10 @@ pub(super) enum Token {
     Tilde,
     Hyphen,
     DoubleHyphen,
+    Plus,
+    Asterisk,
+    ForwardSlash,
+    Percent,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -75,11 +79,19 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                 '}' => Token::ClosedBrace,
                 ';' => Token::Semicolon,
                 '-' => match &input.chars().nth(1) {
-                    Some('-') => Token::DoubleHyphen,
+                    Some('-') => {
+                        input = &input[2..];
+                        input = input.trim_start();
+                        Token::DoubleHyphen
+                    }
                     Some(_) => Token::Hyphen,
                     None => Token::Hyphen,
                 },
                 '~' => Token::Tilde,
+                '+' => Token::Plus,
+                '*' => Token::Asterisk,
+                '/' => Token::ForwardSlash,
+                '%' => Token::Percent,
                 c => {
                     return Err(Error::LexerError { char: *c });
                 }

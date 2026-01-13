@@ -66,6 +66,24 @@ impl CodeEmitter for asm_gen::Instruction {
                 operand.emit(writer)?;
                 write!(writer, "\n")?;
             }
+            asm_gen::Instruction::Binary {
+                binary_operator,
+                left_operand,
+                right_operand,
+            } => {
+                binary_operator.emit(writer)?;
+                write!(writer, " ")?;
+                left_operand.emit(writer)?;
+                write!(writer, ", ")?;
+                right_operand.emit(writer)?;
+                write!(writer, "\n")?;
+            }
+            asm_gen::Instruction::Idiv(operand) => {
+                write!(writer, "  idivl ")?;
+                operand.emit(writer)?;
+                write!(writer, "\n")?;
+            }
+            asm_gen::Instruction::Cdq => writeln!(writer, "  cdq")?,
         }
         Ok(())
     }
@@ -78,6 +96,8 @@ impl CodeEmitter for asm_gen::Operand {
             asm_gen::Operand::Register(register) => match register {
                 asm_gen::Register::AX => write!(writer, "%eax")?,
                 asm_gen::Register::R10 => write!(writer, "%r10d")?,
+                asm_gen::Register::DX => write!(writer, "%edx")?,
+                asm_gen::Register::R11 => write!(writer, "%r11d")?,
             },
             asm_gen::Operand::Psuedo(_) => {
                 return Err(Error::CodeEmissionError(
@@ -95,6 +115,17 @@ impl CodeEmitter for asm_gen::UnaryOperator {
         match self {
             asm_gen::UnaryOperator::Neg => write!(writer, "  negl")?,
             asm_gen::UnaryOperator::Not => write!(writer, "  notl")?,
+        }
+        Ok(())
+    }
+}
+
+impl CodeEmitter for asm_gen::BinaryOperator {
+    fn emit(&self, writer: &mut impl Write) -> Result<()> {
+        match self {
+            asm_gen::BinaryOperator::Add => write!(writer, "  addl")?,
+            asm_gen::BinaryOperator::Sub => write!(writer, "  subl")?,
+            asm_gen::BinaryOperator::Mult => write!(writer, "  imull")?,
         }
         Ok(())
     }

@@ -24,6 +24,12 @@ pub(super) enum Instruction {
         src: Value,
         dst: Value,
     },
+    BinaryOperator {
+        binary_operator: BinaryOperator,
+        src1: Value,
+        src2: Value,
+        dst: Value,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +42,15 @@ pub(super) enum Value {
 pub(super) enum UnaryOperator {
     Complement,
     Negate,
+}
+
+#[derive(Debug)]
+pub(super) enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
 }
 
 static COUNTER: AtomicI64 = AtomicI64::new(0);
@@ -57,7 +72,8 @@ fn parse_function(function: parser::FunctionDefinition) -> FunctionDefinition {
         parser::FunctionDefinition::Function { name, body } => FunctionDefinition::Function {
             body: match body {
                 parser::Statement::Return(expression) => {
-                    let (mut instructions, dst) = parse_expression_to_tacky(&name, expression);
+                    let mut instructions = Vec::new();
+                    let dst = parse_expression_to_tacky(&name, expression, &mut instructions);
                     instructions.push(Instruction::Return(dst));
                     instructions
                 }
@@ -70,21 +86,40 @@ fn parse_function(function: parser::FunctionDefinition) -> FunctionDefinition {
 fn parse_expression_to_tacky(
     function_name: &str,
     expression: parser::Expression,
-) -> (Vec<Instruction>, Value) {
+    instructions: &mut Vec<Instruction>,
+) -> Value {
     match expression {
-        parser::Expression::IntConstant(val) => (Vec::new(), Value::Constant(val)),
+        parser::Expression::IntConstant(val) => Value::Constant(val),
         parser::Expression::Unary {
             unary_operator,
             expression,
         } => {
-            let (mut instructions, src) = parse_expression_to_tacky(&function_name, *expression);
+            let src = parse_expression_to_tacky(&function_name, *expression, instructions);
             let dst = Value::Var(make_temp_name(function_name));
             instructions.push(Instruction::UnaryOperator {
                 unary_operator: parse_unary_operator(unary_operator),
                 src: src,
                 dst: dst.clone(),
             });
-            (instructions, dst)
+            dst
+        }
+        parser::Expression::Binary {
+            binary_operator,
+            left_expression,
+            right_expression,
+        } => {
+            let left_val =
+                parse_expression_to_tacky(&function_name, *left_expression, instructions);
+            let right_val =
+                parse_expression_to_tacky(&function_name, *right_expression, instructions);
+            let dst = Value::Var(make_temp_name(function_name));
+            instructions.push(Instruction::BinaryOperator {
+                binary_operator: parse_binary_operator(binary_operator),
+                src1: left_val,
+                src2: right_val,
+                dst: dst.clone(),
+            });
+            dst
         }
     }
 }
@@ -93,6 +128,16 @@ fn parse_unary_operator(unary_operator: parser::UnaryOperator) -> UnaryOperator 
     match unary_operator {
         parser::UnaryOperator::Complement => UnaryOperator::Complement,
         parser::UnaryOperator::Negate => UnaryOperator::Negate,
+    }
+}
+
+fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOperator {
+    match binary_operator {
+        parser::BinaryOperator::Add => BinaryOperator::Add,
+        parser::BinaryOperator::Subtract => BinaryOperator::Subtract,
+        parser::BinaryOperator::Multiply => BinaryOperator::Multiply,
+        parser::BinaryOperator::Divide => BinaryOperator::Divide,
+        parser::BinaryOperator::Remainder => BinaryOperator::Remainder,
     }
 }
 

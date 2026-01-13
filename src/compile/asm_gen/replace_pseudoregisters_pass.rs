@@ -41,7 +41,18 @@ fn parse_instruction(instruction: &mut Instruction, map: &mut IdMap) {
             unary_operator: _,
             operand,
         } => parse_operand(operand, map),
-        _ => (),
+        Instruction::Binary {
+            binary_operator: _,
+            left_operand,
+            right_operand,
+        } => {
+            parse_operand(left_operand, map);
+            parse_operand(right_operand, map);
+        }
+        Instruction::Idiv(operand) => {
+            parse_operand(operand, map);
+        }
+        Instruction::Cdq | Instruction::Ret | Instruction::AllocateStack(_) => (),
     }
 }
 

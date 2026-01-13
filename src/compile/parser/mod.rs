@@ -25,12 +25,35 @@ pub(super) enum Expression {
         unary_operator: UnaryOperator,
         expression: Box<Expression>,
     },
+    Binary {
+        binary_operator: BinaryOperator,
+        left_expression: Box<Expression>,
+        right_expression: Box<Expression>,
+    },
 }
 
 #[derive(Debug)]
 pub(super) enum UnaryOperator {
     Complement,
     Negate,
+}
+
+#[derive(Debug)]
+pub(super) enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
+impl BinaryOperator {
+    pub(super) fn precedence(&self) -> i64 {
+        match self {
+            BinaryOperator::Add | BinaryOperator::Subtract => 45,
+            BinaryOperator::Multiply | BinaryOperator::Divide | BinaryOperator::Remainder => 50,
+        }
+    }
 }
 
 macro_rules! expect {
@@ -83,14 +106,32 @@ fn parse_function(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Fu
 
 fn parse_statement(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Statement> {
     expect!(iter, Token::Return => ())?;
-    let expression = parse_expression(iter)?;
+    let expression = parse_expression(iter, 0)?;
     expect!(iter, Token::Semicolon => ())?;
     Ok(Statement::Return(expression))
 }
 
-fn parse_expression(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expression> {
+fn parse_expression(
+    iter: &mut Peekable<impl Iterator<Item = Token>>,
+    min_precedence: i64,
+) -> Result<Expression> {
+    let mut left = parse_factor(iter)?;
+    while let Ok(binop) = parse_binary(iter)
+        && binop.precedence() >= min_precedence
+    {
+        iter.next();
+        left = Expression::Binary {
+            left_expression: Box::new(left),
+            right_expression: Box::new(parse_expression(iter, binop.precedence() + 1)?),
+            binary_operator: binop,
+        };
+    }
+    Ok(left)
+}
+
+fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expression> {
     match iter.peek().ok_or_else(|| Error::ParserError {
-        expected: "beginning of expression".to_string(),
+        expected: "factor".to_string(),
         found: "end of string".to_string(),
     })? {
         Token::IntegerConstant(val) => {
@@ -100,16 +141,16 @@ fn parse_expression(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<
         }
         Token::OpenParenthesis => {
             iter.next();
-            let expression = parse_expression(iter)?;
+            let inner = parse_expression(iter, 0)?;
             expect!(iter, Token::ClosedParenthesis => ())?;
-            Ok(expression)
+            Ok(inner)
         }
         Token::Tilde | Token::Hyphen => Ok(Expression::Unary {
             unary_operator: parse_unary(iter)?,
-            expression: Box::new(parse_expression(iter)?),
+            expression: Box::new(parse_factor(iter)?),
         }),
         tok => Err(Error::ParserError {
-            expected: "beginning of expression".to_string(),
+            expected: "beginning of factor".to_string(),
             found: tok.to_string(),
         }),
     }
@@ -125,6 +166,24 @@ fn parse_unary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Unary
         }),
         None => Err(Error::ParserError {
             expected: "beginning of unary expression".to_string(),
+            found: "end of string".to_string(),
+        }),
+    }
+}
+
+fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<BinaryOperator> {
+    match iter.peek() {
+        Some(Token::Hyphen) => Ok(BinaryOperator::Subtract),
+        Some(Token::Plus) => Ok(BinaryOperator::Add),
+        Some(Token::Asterisk) => Ok(BinaryOperator::Multiply),
+        Some(Token::ForwardSlash) => Ok(BinaryOperator::Divide),
+        Some(Token::Percent) => Ok(BinaryOperator::Remainder),
+        Some(tok) => Err(Error::ParserError {
+            expected: "binary operator".to_string(),
+            found: tok.to_string(),
+        }),
+        None => Err(Error::ParserError {
+            expected: "beginning of binary expression".to_string(),
             found: "end of string".to_string(),
         }),
     }

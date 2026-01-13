@@ -33,12 +33,26 @@ pub(super) enum Instruction {
         unary_operator: UnaryOperator,
         operand: Operand,
     },
+    Binary {
+        binary_operator: BinaryOperator,
+        left_operand: Operand,
+        right_operand: Operand,
+    },
+    Idiv(Operand),
+    Cdq,
 }
 
 #[derive(Debug)]
 pub(super) enum UnaryOperator {
     Neg,
     Not,
+}
+
+#[derive(Debug)]
+pub(super) enum BinaryOperator {
+    Add,
+    Sub,
+    Mult,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +67,8 @@ pub(super) enum Operand {
 pub(super) enum Register {
     AX,
     R10,
+    DX,
+    R11,
 }
 
 pub(super) fn asm_gen(ast: tacky::Program) -> Result<Program> {
