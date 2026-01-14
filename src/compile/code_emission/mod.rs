@@ -32,7 +32,11 @@ impl CodeEmitter for asm_gen::FunctionDefinition {
         match self {
             asm_gen::FunctionDefinition::Function { name, instructions } => {
                 writeln!(writer, ".globl {}", name)?;
+                #[cfg(target_os = "linux")]
                 writeln!(writer, "{}:", name)?;
+                #[cfg(target_os = "macos")]
+                writeln!(writer, "_{}:", name)?;
+
                 writeln!(writer, "  pushq %rbp\n  movq %rsp, %rbp")?;
                 instructions
                     .into_iter()
