@@ -34,7 +34,7 @@ pub(super) enum Instruction {
 
 #[derive(Debug, Clone)]
 pub(super) enum Value {
-    Constant(i64),
+    Constant(i32),
     Var(String),
 }
 
@@ -51,6 +51,11 @@ pub(super) enum BinaryOperator {
     Multiply,
     Divide,
     Remainder,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    LeftShift,
+    RightShift,
 }
 
 static COUNTER: AtomicI64 = AtomicI64::new(0);
@@ -138,6 +143,11 @@ fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOpera
         parser::BinaryOperator::Multiply => BinaryOperator::Multiply,
         parser::BinaryOperator::Divide => BinaryOperator::Divide,
         parser::BinaryOperator::Remainder => BinaryOperator::Remainder,
+        parser::BinaryOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
+        parser::BinaryOperator::BitwiseOr => BinaryOperator::BitwiseOr,
+        parser::BinaryOperator::BitwiseXor => BinaryOperator::BitwiseXor,
+        parser::BinaryOperator::LeftShift => BinaryOperator::LeftShift,
+        parser::BinaryOperator::RightShift => BinaryOperator::RightShift,
     }
 }
 

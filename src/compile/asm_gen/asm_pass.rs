@@ -76,7 +76,6 @@ fn parse_instruction(instruction: tacky::Instruction, instructions: &mut Vec<Ins
                         right_operand: dst,
                     });
                 }
-
                 tacky::BinaryOperator::Multiply => {
                     instructions.push(Instruction::Mov {
                         src: parse_operand(src1),
@@ -110,6 +109,76 @@ fn parse_instruction(instruction: tacky::Instruction, instructions: &mut Vec<Ins
                     instructions.push(Instruction::Mov {
                         src: Operand::Register(Register::DX),
                         dst: dst,
+                    });
+                }
+                tacky::BinaryOperator::BitwiseAnd => {
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src1),
+                        dst: dst.clone(),
+                    });
+                    instructions.push(Instruction::Binary {
+                        binary_operator: BinaryOperator::BitwiseAnd,
+                        left_operand: parse_operand(src2),
+                        right_operand: dst,
+                    });
+                }
+                tacky::BinaryOperator::BitwiseOr => {
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src1),
+                        dst: dst.clone(),
+                    });
+                    instructions.push(Instruction::Binary {
+                        binary_operator: BinaryOperator::BitwiseOr,
+                        left_operand: parse_operand(src2),
+                        right_operand: dst,
+                    });
+                }
+
+                tacky::BinaryOperator::BitwiseXor => {
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src1),
+                        dst: dst.clone(),
+                    });
+                    instructions.push(Instruction::Binary {
+                        binary_operator: BinaryOperator::BitwiseXor,
+                        left_operand: parse_operand(src2),
+                        right_operand: dst,
+                    });
+                }
+                tacky::BinaryOperator::LeftShift => {
+                    //left is value being shifted
+                    //right is shift count
+                    //dst is where we want it to do
+                    //move left into dst
+                    //move right into cl
+                    //left shift cl
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src1),
+                        dst: dst.clone(),
+                    });
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src2),
+                        dst: Operand::Register(Register::CX),
+                    });
+                    instructions.push(Instruction::Binary {
+                        binary_operator: BinaryOperator::LeftShift,
+                        right_operand: dst,
+                        left_operand: Operand::Register(Register::CL),
+                    });
+                }
+                tacky::BinaryOperator::RightShift => {
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src1),
+                        dst: dst.clone(),
+                    });
+                    instructions.push(Instruction::Mov {
+                        src: parse_operand(src2),
+                        dst: Operand::Register(Register::CX),
+                    });
+                    instructions.push(Instruction::Binary {
+                        binary_operator: BinaryOperator::RightShift,
+                        right_operand: dst,
+                        left_operand: Operand::Register(Register::CL),
                     });
                 }
             }

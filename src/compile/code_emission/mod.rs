@@ -98,6 +98,8 @@ impl CodeEmitter for asm_gen::Operand {
                 asm_gen::Register::R10 => write!(writer, "%r10d")?,
                 asm_gen::Register::DX => write!(writer, "%edx")?,
                 asm_gen::Register::R11 => write!(writer, "%r11d")?,
+                asm_gen::Register::CL => write!(writer, "%cl")?,
+                asm_gen::Register::CX => write!(writer, "%ecx")?,
             },
             asm_gen::Operand::Psuedo(_) => {
                 return Err(Error::CodeEmissionError(
@@ -126,6 +128,11 @@ impl CodeEmitter for asm_gen::BinaryOperator {
             asm_gen::BinaryOperator::Add => write!(writer, "  addl")?,
             asm_gen::BinaryOperator::Sub => write!(writer, "  subl")?,
             asm_gen::BinaryOperator::Mult => write!(writer, "  imull")?,
+            asm_gen::BinaryOperator::BitwiseAnd => write!(writer, "  andl")?,
+            asm_gen::BinaryOperator::BitwiseOr => write!(writer, "  orl")?,
+            asm_gen::BinaryOperator::BitwiseXor => write!(writer, "  xorl")?,
+            asm_gen::BinaryOperator::LeftShift => write!(writer, "  shll")?,
+            asm_gen::BinaryOperator::RightShift => write!(writer, "  sarl")?,
         }
         Ok(())
     }

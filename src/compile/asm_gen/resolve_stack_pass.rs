@@ -47,7 +47,12 @@ fn parse_instruction(instruction: Instruction, new_instructions: &mut Vec<Instru
         Instruction::Binary {
             left_operand: left_operand @ Operand::Stack(_),
             right_operand: right_operand @ Operand::Stack(_),
-            binary_operator: binary_operator @ (BinaryOperator::Add | BinaryOperator::Sub),
+            binary_operator:
+                binary_operator @ (BinaryOperator::Add
+                | BinaryOperator::Sub
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseXor),
         } => {
             new_instructions.push(Instruction::Mov {
                 src: left_operand,

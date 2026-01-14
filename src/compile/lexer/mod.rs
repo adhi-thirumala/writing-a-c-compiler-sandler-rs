@@ -7,7 +7,7 @@ pub(super) enum Token {
     #[strum(to_string = "Identifier: {0}")]
     Identifier(String),
     #[strum(to_string = "Integer Constant: {0}")]
-    IntegerConstant(i64),
+    IntegerConstant(i32),
     Int,
     Void,
     Return,
@@ -23,6 +23,11 @@ pub(super) enum Token {
     Asterisk,
     ForwardSlash,
     Percent,
+    Ampersand,
+    Pipe,
+    Carrot,
+    LeftShift,
+    RightShift,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -67,6 +72,7 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
         // all 1 char toks - if we're here, we've failed to match all longer possibilities, there
         // next character MUST be a non alphanumeric or underscore char
         // cant be multiple tying 1 char regexes
+        let mut length = 1;
         toks.push(
             match &input
                 .chars()
@@ -80,8 +86,7 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                 ';' => Token::Semicolon,
                 '-' => match &input.chars().nth(1) {
                     Some('-') => {
-                        input = &input[2..];
-                        input = input.trim_start();
+                        length = 2;
                         Token::DoubleHyphen
                     }
                     Some(_) => Token::Hyphen,
@@ -92,12 +97,29 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                 '*' => Token::Asterisk,
                 '/' => Token::ForwardSlash,
                 '%' => Token::Percent,
+                '&' => Token::Ampersand,
+                '|' => Token::Pipe,
+                '^' => Token::Carrot,
+                '>' => match &input.chars().nth(1) {
+                    Some('>') => {
+                        length = 2;
+                        Token::RightShift
+                    }
+                    Some(_) | None => return Err(Error::LexerError { char: '>' }),
+                },
+                '<' => match &input.chars().nth(1) {
+                    Some('<') => {
+                        length = 2;
+                        Token::LeftShift
+                    }
+                    Some(_) | None => return Err(Error::LexerError { char: '<' }),
+                },
                 c => {
                     return Err(Error::LexerError { char: *c });
                 }
             },
         );
-        input = &input[1..];
+        input = &input[length..];
         input = input.trim_start();
         //keeping it at the end allows us to trim, and then immediately
         //check for emptiness such that empty strings dont cause lexer

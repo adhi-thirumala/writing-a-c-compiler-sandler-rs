@@ -20,7 +20,7 @@ pub(super) enum Statement {
 
 #[derive(Debug)]
 pub(super) enum Expression {
-    IntConstant(i64),
+    IntConstant(i32),
     Unary {
         unary_operator: UnaryOperator,
         expression: Box<Expression>,
@@ -45,13 +45,22 @@ pub(super) enum BinaryOperator {
     Multiply,
     Divide,
     Remainder,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    LeftShift,
+    RightShift,
 }
 
 impl BinaryOperator {
     pub(super) fn precedence(&self) -> i64 {
         match self {
-            BinaryOperator::Add | BinaryOperator::Subtract => 45,
             BinaryOperator::Multiply | BinaryOperator::Divide | BinaryOperator::Remainder => 50,
+            BinaryOperator::Add | BinaryOperator::Subtract => 45,
+            BinaryOperator::RightShift | BinaryOperator::LeftShift => 40,
+            BinaryOperator::BitwiseAnd => 35,
+            BinaryOperator::BitwiseXor => 34,
+            BinaryOperator::BitwiseOr => 33,
         }
     }
 }
@@ -178,6 +187,12 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
         Some(Token::Asterisk) => Ok(BinaryOperator::Multiply),
         Some(Token::ForwardSlash) => Ok(BinaryOperator::Divide),
         Some(Token::Percent) => Ok(BinaryOperator::Remainder),
+        Some(Token::Ampersand) => Ok(BinaryOperator::BitwiseAnd),
+        Some(Token::LeftShift) => Ok(BinaryOperator::LeftShift),
+        Some(Token::RightShift) => Ok(BinaryOperator::RightShift),
+        Some(Token::Pipe) => Ok(BinaryOperator::BitwiseOr),
+        Some(Token::Carrot) => Ok(BinaryOperator::BitwiseXor),
+
         Some(tok) => Err(Error::ParserError {
             expected: "binary operator".to_string(),
             found: tok.to_string(),

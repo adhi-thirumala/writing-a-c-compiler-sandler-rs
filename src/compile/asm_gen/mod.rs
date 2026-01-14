@@ -53,11 +53,16 @@ pub(super) enum BinaryOperator {
     Add,
     Sub,
     Mult,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    LeftShift,
+    RightShift,
 }
 
 #[derive(Debug, Clone)]
 pub(super) enum Operand {
-    Imm(i64),
+    Imm(i32),
     Register(Register),
     Psuedo(String),
     Stack(i64),
@@ -69,6 +74,8 @@ pub(super) enum Register {
     R10,
     DX,
     R11,
+    CL,
+    CX,
 }
 
 pub(super) fn asm_gen(ast: tacky::Program) -> Result<Program> {
