@@ -170,7 +170,7 @@ fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr
             expect!(iter, Token::ClosedParenthesis => ())?;
             Ok(inner)
         }
-        Token::Tilde | Token::Hyphen => Ok(Expression::Unary {
+        Token::Tilde | Token::Hyphen | Token::Exclamation => Ok(Expression::Unary {
             unary_operator: parse_unary(iter)?,
             expression: Box::new(parse_factor(iter)?),
         }),

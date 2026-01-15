@@ -147,7 +147,7 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                         length = 2;
                         Token::NotEqual
                     }
-                    Some(_) | None => Token::NotEqual,
+                    Some(_) | None => Token::Exclamation,
                 },
                 '=' => match &input.chars().nth(1) {
                     Some('=') => {
