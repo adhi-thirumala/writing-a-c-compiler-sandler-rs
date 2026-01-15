@@ -90,6 +90,32 @@ fn parse_instruction(instruction: Instruction, new_instructions: &mut Vec<Instru
             });
             new_instructions.push(Instruction::Idiv(Operand::Register(Register::R10)));
         }
+        Instruction::Cmp {
+            left_operand: left_operand @ Operand::Stack(_),
+            right_operand: right_operand @ Operand::Stack(_),
+        } => {
+            new_instructions.push(Instruction::Mov {
+                src: left_operand,
+                dst: Operand::Register(Register::R10),
+            });
+            new_instructions.push(Instruction::Cmp {
+                left_operand: Operand::Register(Register::R10),
+                right_operand: right_operand,
+            });
+        }
+        Instruction::Cmp {
+            left_operand,
+            right_operand: right_operand @ Operand::Imm(_),
+        } => {
+            new_instructions.push(Instruction::Mov {
+                src: right_operand,
+                dst: Operand::Register(Register::R11),
+            });
+            new_instructions.push(Instruction::Cmp {
+                left_operand: left_operand,
+                right_operand: Operand::Register(Register::R11),
+            });
+        }
         instr => new_instructions.push(instr),
     }
 }

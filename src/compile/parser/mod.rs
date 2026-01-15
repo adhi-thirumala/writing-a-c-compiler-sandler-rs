@@ -36,6 +36,7 @@ pub(super) enum Expression {
 pub(super) enum UnaryOperator {
     Complement,
     Negate,
+    Not,
 }
 
 #[derive(Debug)]
@@ -50,6 +51,14 @@ pub(super) enum BinaryOperator {
     BitwiseXor,
     LeftShift,
     RightShift,
+    And,
+    Or,
+    Equal,
+    NotEqual,
+    LessThan,
+    Leq,
+    GreaterThan,
+    Geq,
 }
 
 impl BinaryOperator {
@@ -58,9 +67,16 @@ impl BinaryOperator {
             BinaryOperator::Multiply | BinaryOperator::Divide | BinaryOperator::Remainder => 50,
             BinaryOperator::Add | BinaryOperator::Subtract => 45,
             BinaryOperator::RightShift | BinaryOperator::LeftShift => 40,
+            BinaryOperator::LessThan
+            | BinaryOperator::Leq
+            | BinaryOperator::GreaterThan
+            | BinaryOperator::Geq => 39,
+            BinaryOperator::NotEqual | BinaryOperator::Equal => 38,
             BinaryOperator::BitwiseAnd => 35,
             BinaryOperator::BitwiseXor => 34,
             BinaryOperator::BitwiseOr => 33,
+            BinaryOperator::And => 30,
+            BinaryOperator::Or => 29,
         }
     }
 }
@@ -169,6 +185,7 @@ fn parse_unary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Unary
     match iter.next() {
         Some(Token::Hyphen) => Ok(UnaryOperator::Negate),
         Some(Token::Tilde) => Ok(UnaryOperator::Complement),
+        Some(Token::Exclamation) => Ok(UnaryOperator::Not),
         Some(tok) => Err(Error::ParserError {
             expected: "unary operator".to_string(),
             found: tok.to_string(),
@@ -192,7 +209,14 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
         Some(Token::RightShift) => Ok(BinaryOperator::RightShift),
         Some(Token::Pipe) => Ok(BinaryOperator::BitwiseOr),
         Some(Token::Carrot) => Ok(BinaryOperator::BitwiseXor),
-
+        Some(Token::DoubleAmpersand) => Ok(BinaryOperator::And),
+        Some(Token::DoublePipe) => Ok(BinaryOperator::Or),
+        Some(Token::DoubleEqual) => Ok(BinaryOperator::Equal),
+        Some(Token::NotEqual) => Ok(BinaryOperator::NotEqual),
+        Some(Token::LessThan) => Ok(BinaryOperator::LessThan),
+        Some(Token::Leq) => Ok(BinaryOperator::Leq),
+        Some(Token::GreaterThan) => Ok(BinaryOperator::GreaterThan),
+        Some(Token::Geq) => Ok(BinaryOperator::Geq),
         Some(tok) => Err(Error::ParserError {
             expected: "binary operator".to_string(),
             found: tok.to_string(),

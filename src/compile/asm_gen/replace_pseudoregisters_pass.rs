@@ -52,7 +52,21 @@ fn parse_instruction(instruction: &mut Instruction, map: &mut IdMap) {
         Instruction::Idiv(operand) => {
             parse_operand(operand, map);
         }
-        Instruction::Cdq | Instruction::Ret | Instruction::AllocateStack(_) => (),
+        Instruction::Cmp {
+            left_operand,
+            right_operand,
+        } => {
+            parse_operand(left_operand, map);
+            parse_operand(right_operand, map);
+        }
+
+        Instruction::SetCC { operand, .. } => parse_operand(operand, map),
+        Instruction::Jmp(_)
+        | Instruction::JmpCC { .. }
+        | Instruction::Label(_)
+        | Instruction::Cdq
+        | Instruction::Ret
+        | Instruction::AllocateStack(_) => (),
     }
 }
 

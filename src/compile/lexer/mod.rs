@@ -28,6 +28,15 @@ pub(super) enum Token {
     Carrot,
     LeftShift,
     RightShift,
+    Exclamation,
+    DoubleAmpersand,
+    DoublePipe,
+    DoubleEqual,
+    NotEqual,
+    LessThan,
+    GreaterThan,
+    Leq,
+    Geq,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -89,30 +98,63 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                         length = 2;
                         Token::DoubleHyphen
                     }
-                    Some(_) => Token::Hyphen,
-                    None => Token::Hyphen,
+                    Some(_) | None => Token::Hyphen,
                 },
                 '~' => Token::Tilde,
                 '+' => Token::Plus,
                 '*' => Token::Asterisk,
                 '/' => Token::ForwardSlash,
                 '%' => Token::Percent,
-                '&' => Token::Ampersand,
-                '|' => Token::Pipe,
+                '&' => match &input.chars().nth(1) {
+                    Some('&') => {
+                        length = 2;
+                        Token::DoubleAmpersand
+                    }
+                    Some(_) | None => Token::Ampersand,
+                },
+                '|' => match &input.chars().nth(1) {
+                    Some('|') => {
+                        length = 2;
+                        Token::DoublePipe
+                    }
+                    Some(_) | None => Token::Pipe,
+                },
                 '^' => Token::Carrot,
                 '>' => match &input.chars().nth(1) {
                     Some('>') => {
                         length = 2;
                         Token::RightShift
                     }
-                    Some(_) | None => return Err(Error::LexerError { char: '>' }),
+                    Some('=') => {
+                        length = 2;
+                        Token::Geq
+                    }
+                    Some(_) | None => Token::GreaterThan,
                 },
                 '<' => match &input.chars().nth(1) {
                     Some('<') => {
                         length = 2;
                         Token::LeftShift
                     }
-                    Some(_) | None => return Err(Error::LexerError { char: '<' }),
+                    Some('=') => {
+                        length = 2;
+                        Token::Leq
+                    }
+                    Some(_) | None => Token::LessThan,
+                },
+                '!' => match &input.chars().nth(1) {
+                    Some('=') => {
+                        length = 2;
+                        Token::NotEqual
+                    }
+                    Some(_) | None => Token::NotEqual,
+                },
+                '=' => match &input.chars().nth(1) {
+                    Some('=') => {
+                        length = 2;
+                        Token::DoubleEqual
+                    }
+                    Some(_) | None => return Err(Error::LexerError { char: '=' }),
                 },
                 c => {
                     return Err(Error::LexerError { char: *c });

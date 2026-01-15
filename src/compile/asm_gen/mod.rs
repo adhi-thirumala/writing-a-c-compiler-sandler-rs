@@ -40,6 +40,20 @@ pub(super) enum Instruction {
     },
     Idiv(Operand),
     Cdq,
+    Cmp {
+        left_operand: Operand,
+        right_operand: Operand,
+    },
+    Jmp(String),
+    JmpCC {
+        cond_code: CondCode,
+        identifier: String,
+    },
+    SetCC {
+        cond_code: CondCode,
+        operand: Operand,
+    },
+    Label(String),
 }
 
 #[derive(Debug)]
@@ -74,8 +88,17 @@ pub(super) enum Register {
     R10,
     DX,
     R11,
-    CL,
     CX,
+}
+
+#[derive(Debug)]
+pub(super) enum CondCode {
+    E,
+    NE,
+    G,
+    GE,
+    L,
+    LE,
 }
 
 pub(super) fn asm_gen(ast: tacky::Program) -> Result<Program> {

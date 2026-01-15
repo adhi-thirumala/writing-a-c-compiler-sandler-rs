@@ -30,6 +30,20 @@ pub(super) enum Instruction {
         src2: Value,
         dst: Value,
     },
+    Copy {
+        src: Value,
+        dst: Value,
+    },
+    Jump(String),
+    JumpIfZero {
+        target: String,
+        condition: Value,
+    },
+    JumpIfNotZero {
+        target: String,
+        condition: Value,
+    },
+    Label(String),
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +56,7 @@ pub(super) enum Value {
 pub(super) enum UnaryOperator {
     Complement,
     Negate,
+    Not,
 }
 
 #[derive(Debug)]
@@ -56,6 +71,12 @@ pub(super) enum BinaryOperator {
     BitwiseXor,
     LeftShift,
     RightShift,
+    Equal,
+    NotEqual,
+    LessThan,
+    Leq,
+    GreaterThan,
+    Geq,
 }
 
 static COUNTER: AtomicI64 = AtomicI64::new(0);
@@ -100,12 +121,80 @@ fn parse_expression_to_tacky(
             expression,
         } => {
             let src = parse_expression_to_tacky(&function_name, *expression, instructions);
-            let dst = Value::Var(make_temp_name(function_name));
+            let dst = Value::Var(make_temp_identifier(function_name));
             instructions.push(Instruction::UnaryOperator {
                 unary_operator: parse_unary_operator(unary_operator),
                 src: src,
                 dst: dst.clone(),
             });
+            dst
+        }
+        parser::Expression::Binary {
+            binary_operator: parser::BinaryOperator::And,
+            left_expression,
+            right_expression,
+        } => {
+            let left_val =
+                parse_expression_to_tacky(&function_name, *left_expression, instructions);
+            let temp_label = make_temp_label(&function_name);
+            let dst = Value::Var(make_temp_identifier(&function_name));
+            instructions.push(Instruction::JumpIfZero {
+                target: temp_label.clone(),
+                condition: left_val,
+            });
+            let right_val =
+                parse_expression_to_tacky(&function_name, *right_expression, instructions);
+            instructions.push(Instruction::JumpIfZero {
+                target: temp_label.clone(),
+                condition: right_val,
+            });
+            instructions.push(Instruction::Copy {
+                src: Value::Constant(1),
+                dst: dst.clone(),
+            });
+            let end = make_temp_label(function_name);
+            instructions.push(Instruction::Jump(end.clone()));
+            instructions.push(Instruction::Label(temp_label));
+            instructions.push(Instruction::Copy {
+                src: Value::Constant(0),
+                dst: dst.clone(),
+            });
+
+            instructions.push(Instruction::Label(end));
+            dst
+        }
+        parser::Expression::Binary {
+            binary_operator: parser::BinaryOperator::Or,
+            left_expression,
+            right_expression,
+        } => {
+            let left_val =
+                parse_expression_to_tacky(&function_name, *left_expression, instructions);
+            let temp_label = make_temp_label(&function_name);
+            let dst = Value::Var(make_temp_identifier(&function_name));
+            instructions.push(Instruction::JumpIfNotZero {
+                target: temp_label.clone(),
+                condition: left_val,
+            });
+            let right_val =
+                parse_expression_to_tacky(&function_name, *right_expression, instructions);
+            instructions.push(Instruction::JumpIfNotZero {
+                target: temp_label.clone(),
+                condition: right_val,
+            });
+            instructions.push(Instruction::Copy {
+                src: Value::Constant(0),
+                dst: dst.clone(),
+            });
+            let end = make_temp_label(function_name);
+            instructions.push(Instruction::Jump(end.clone()));
+            instructions.push(Instruction::Label(temp_label));
+            instructions.push(Instruction::Copy {
+                src: Value::Constant(1),
+                dst: dst.clone(),
+            });
+
+            instructions.push(Instruction::Label(end));
             dst
         }
         parser::Expression::Binary {
@@ -117,7 +206,7 @@ fn parse_expression_to_tacky(
                 parse_expression_to_tacky(&function_name, *left_expression, instructions);
             let right_val =
                 parse_expression_to_tacky(&function_name, *right_expression, instructions);
-            let dst = Value::Var(make_temp_name(function_name));
+            let dst = Value::Var(make_temp_identifier(function_name));
             instructions.push(Instruction::BinaryOperator {
                 binary_operator: parse_binary_operator(binary_operator),
                 src1: left_val,
@@ -133,6 +222,7 @@ fn parse_unary_operator(unary_operator: parser::UnaryOperator) -> UnaryOperator 
     match unary_operator {
         parser::UnaryOperator::Complement => UnaryOperator::Complement,
         parser::UnaryOperator::Negate => UnaryOperator::Negate,
+        parser::UnaryOperator::Not => UnaryOperator::Not,
     }
 }
 
@@ -148,11 +238,25 @@ fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOpera
         parser::BinaryOperator::BitwiseXor => BinaryOperator::BitwiseXor,
         parser::BinaryOperator::LeftShift => BinaryOperator::LeftShift,
         parser::BinaryOperator::RightShift => BinaryOperator::RightShift,
+        parser::BinaryOperator::And => unreachable!("cant get to and since we hit the case above"),
+        parser::BinaryOperator::Or => unreachable!("cant get to or since we hit the case above"),
+        parser::BinaryOperator::Equal => BinaryOperator::Equal,
+        parser::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
+        parser::BinaryOperator::LessThan => BinaryOperator::LessThan,
+        parser::BinaryOperator::Leq => BinaryOperator::Leq,
+        parser::BinaryOperator::GreaterThan => BinaryOperator::GreaterThan,
+        parser::BinaryOperator::Geq => BinaryOperator::Geq,
     }
 }
 
-fn make_temp_name(function_name: &str) -> String {
+fn make_temp_identifier(function_name: &str) -> String {
     let temp_name = format!("{}-tmp.{:?}", function_name, COUNTER);
+    COUNTER.fetch_add(1, Relaxed);
+    temp_name
+}
+
+fn make_temp_label(function_name: &str) -> String {
+    let temp_name = format!("{}_tmp_label.{:?}", function_name, COUNTER);
     COUNTER.fetch_add(1, Relaxed);
     temp_name
 }
