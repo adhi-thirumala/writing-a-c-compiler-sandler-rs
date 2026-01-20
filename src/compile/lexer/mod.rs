@@ -18,7 +18,6 @@ pub(super) enum Token {
     Semicolon,
     Tilde,
     Hyphen,
-    DoubleHyphen,
     Plus,
     Asterisk,
     ForwardSlash,
@@ -38,6 +37,18 @@ pub(super) enum Token {
     Leq,
     Geq,
     Equal,
+    PlusEqual,
+    MinusEqual,
+    AsteriskEqual,
+    ForwardSlashEqual,
+    PercentEqual,
+    AmpersandEqual,
+    PipeEqual,
+    CarrotEqual,
+    LtLtEqual,
+    GtGtEqual,
+    DoubleHyphen,
+    DoublePlus,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -99,17 +110,54 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                         length = 2;
                         Token::DoubleHyphen
                     }
+                    Some('=') => {
+                        length = 2;
+                        Token::MinusEqual
+                    }
                     Some(_) | None => Token::Hyphen,
                 },
                 '~' => Token::Tilde,
-                '+' => Token::Plus,
-                '*' => Token::Asterisk,
-                '/' => Token::ForwardSlash,
-                '%' => Token::Percent,
+                '+' => match &input.chars().nth(1) {
+                    Some('+') => {
+                        length = 2;
+                        Token::DoublePlus
+                    }
+                    Some('=') => {
+                        length = 2;
+                        Token::PlusEqual
+                    }
+                    Some(_) | None => Token::Plus,
+                },
+                '*' => match &input.chars().nth(1) {
+                    Some('=') => {
+                        length = 2;
+                        Token::AsteriskEqual
+                    }
+                    Some(_) | None => Token::Asterisk,
+                },
+                '/' => match &input.chars().nth(1) {
+                    Some('=') => {
+                        length = 2;
+                        Token::ForwardSlashEqual
+                    }
+                    Some(_) | None => Token::ForwardSlash,
+                },
+                '%' => match &input.chars().nth(1) {
+                    Some('=') => {
+                        length = 2;
+                        Token::PercentEqual
+                    }
+                    Some(_) | None => Token::Percent,
+                },
+
                 '&' => match &input.chars().nth(1) {
                     Some('&') => {
                         length = 2;
                         Token::DoubleAmpersand
+                    }
+                    Some('=') => {
+                        length = 2;
+                        Token::AmpersandEqual
                     }
                     Some(_) | None => Token::Ampersand,
                 },
@@ -118,14 +166,31 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                         length = 2;
                         Token::DoublePipe
                     }
+                    Some('=') => {
+                        length = 2;
+                        Token::PipeEqual
+                    }
                     Some(_) | None => Token::Pipe,
                 },
-                '^' => Token::Carrot,
-                '>' => match &input.chars().nth(1) {
-                    Some('>') => {
+                '^' => match &input.chars().nth(1) {
+                    Some('=') => {
                         length = 2;
-                        Token::RightShift
+                        Token::CarrotEqual
                     }
+                    Some(_) | None => Token::Carrot,
+                },
+
+                '>' => match &input.chars().nth(1) {
+                    Some('>') => match &input.chars().nth(2) {
+                        Some('=') => {
+                            length = 3;
+                            Token::GtGtEqual
+                        }
+                        Some(_) | None => {
+                            length = 2;
+                            Token::RightShift
+                        }
+                    },
                     Some('=') => {
                         length = 2;
                         Token::Geq
@@ -133,10 +198,16 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                     Some(_) | None => Token::GreaterThan,
                 },
                 '<' => match &input.chars().nth(1) {
-                    Some('<') => {
-                        length = 2;
-                        Token::LeftShift
-                    }
+                    Some('<') => match &input.chars().nth(2) {
+                        Some('=') => {
+                            length = 3;
+                            Token::LtLtEqual
+                        }
+                        Some(_) | None => {
+                            length = 2;
+                            Token::LeftShift
+                        }
+                    },
                     Some('=') => {
                         length = 2;
                         Token::Leq

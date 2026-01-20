@@ -50,6 +50,7 @@ pub(super) enum Expression {
     Assignment {
         left_expression: Box<Expression>,
         right_expression: Box<Expression>,
+        operator: Option<BinaryOperator>,
     },
 }
 
@@ -81,6 +82,7 @@ pub(super) enum BinaryOperator {
     GreaterThan,
     Geq,
     Assigmnent,
+    CompoundAssignment(Box<BinaryOperator>),
 }
 
 macro_rules! expect {
@@ -188,18 +190,27 @@ fn parse_expression(
 ) -> Result<Expression> {
     let mut left = parse_factor(iter)?;
     while let Ok(binop) = parse_binary(iter)
-        && binop.precedence() >= min_precedence
+        && let curr_precedence = binop.precedence()
+        && curr_precedence >= min_precedence
     {
+        let curr_precedence = binop.precedence();
         iter.next();
-        if let eq @ BinaryOperator::Assigmnent = binop {
+        if let BinaryOperator::Assigmnent = binop {
             left = Expression::Assignment {
                 left_expression: Box::new(left),
-                right_expression: Box::new(parse_expression(iter, eq.precedence())?),
+                right_expression: Box::new(parse_expression(iter, curr_precedence)?),
+                operator: None,
+            };
+        } else if let BinaryOperator::CompoundAssignment(operator) = binop {
+            left = Expression::Assignment {
+                left_expression: Box::new(left),
+                right_expression: Box::new(parse_expression(iter, curr_precedence)?),
+                operator: Some(*operator),
             };
         } else {
             left = Expression::Binary {
                 left_expression: Box::new(left),
-                right_expression: Box::new(parse_expression(iter, binop.precedence() + 1)?),
+                right_expression: Box::new(parse_expression(iter, curr_precedence + 1)?),
                 binary_operator: binop,
             };
         }
@@ -276,6 +287,37 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
         Some(Token::GreaterThan) => Ok(BinaryOperator::GreaterThan),
         Some(Token::Geq) => Ok(BinaryOperator::Geq),
         Some(Token::Equal) => Ok(BinaryOperator::Assigmnent),
+        Some(Token::PlusEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::Add,
+        ))),
+        Some(Token::MinusEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::Subtract,
+        ))),
+        Some(Token::AsteriskEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::Multiply,
+        ))),
+        Some(Token::ForwardSlashEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::Divide,
+        ))),
+        Some(Token::PercentEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::Remainder,
+        ))),
+        Some(Token::AmpersandEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::BitwiseAnd,
+        ))),
+        Some(Token::PipeEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::BitwiseOr,
+        ))),
+        Some(Token::CarrotEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::BitwiseXor,
+        ))),
+        Some(Token::LtLtEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::LeftShift,
+        ))),
+        Some(Token::GtGtEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
+            BinaryOperator::RightShift,
+        ))),
+
         Some(tok) => Err(Error::ParserError {
             expected: "binary operator".to_string(),
             found: tok.to_string(),
@@ -303,7 +345,7 @@ impl BinaryOperator {
             BinaryOperator::BitwiseOr => 33,
             BinaryOperator::And => 30,
             BinaryOperator::Or => 29,
-            BinaryOperator::Assigmnent => 20,
+            BinaryOperator::Assigmnent | BinaryOperator::CompoundAssignment(_) => 20,
         }
     }
 }

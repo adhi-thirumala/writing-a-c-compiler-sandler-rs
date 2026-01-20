@@ -79,6 +79,7 @@ fn resolve_expression(
         parser::Expression::Assignment {
             left_expression,
             right_expression,
+            ..
         } => {
             if let parser::Expression::Var(_) = **left_expression {
                 resolve_expression(left_expression, variable_map)?;

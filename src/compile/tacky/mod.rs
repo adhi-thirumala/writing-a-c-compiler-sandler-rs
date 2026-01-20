@@ -241,14 +241,25 @@ fn parse_expression_to_tacky(
         parser::Expression::Assignment {
             left_expression,
             right_expression,
+            operator,
         } => {
             if let parser::Expression::Var(val) = *left_expression {
                 let src = parse_expression_to_tacky(function_name, *right_expression, instructions);
-                instructions.push(Instruction::Copy {
-                    src: src,
-                    dst: Value::Var(val.clone()),
-                });
-                Value::Var(val)
+                let dst = Value::Var(val);
+                if let Some(operator) = operator {
+                    instructions.push(Instruction::BinaryOperator {
+                        binary_operator: parse_binary_operator(operator),
+                        src1: dst.clone(),
+                        src2: src,
+                        dst: dst.clone(),
+                    });
+                } else {
+                    instructions.push(Instruction::Copy {
+                        src: src,
+                        dst: dst.clone(),
+                    });
+                }
+                dst
             } else {
                 unreachable!("semantic analysis checked")
             }
@@ -291,15 +302,18 @@ fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOpera
         parser::BinaryOperator::BitwiseXor => BinaryOperator::BitwiseXor,
         parser::BinaryOperator::LeftShift => BinaryOperator::LeftShift,
         parser::BinaryOperator::RightShift => BinaryOperator::RightShift,
-        parser::BinaryOperator::And => unreachable!("cant get to and since we hit the case above"),
-        parser::BinaryOperator::Or => unreachable!("cant get to or since we hit the case above"),
-        parser::BinaryOperator::Assigmnent => unreachable!("unconstructable"),
         parser::BinaryOperator::Equal => BinaryOperator::Equal,
         parser::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
         parser::BinaryOperator::LessThan => BinaryOperator::LessThan,
         parser::BinaryOperator::Leq => BinaryOperator::Leq,
         parser::BinaryOperator::GreaterThan => BinaryOperator::GreaterThan,
         parser::BinaryOperator::Geq => BinaryOperator::Geq,
+        parser::BinaryOperator::And
+        | parser::BinaryOperator::Or
+        | parser::BinaryOperator::Assigmnent
+        | parser::BinaryOperator::CompoundAssignment(_) => {
+            unreachable!("unconstructable")
+        }
     }
 }
 
