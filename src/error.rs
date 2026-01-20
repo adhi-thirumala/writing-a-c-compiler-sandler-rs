@@ -11,6 +11,9 @@ pub(crate) enum Error {
     #[error("Parser error: expected {expected}, found {found}")]
     ParserError { expected: String, found: String },
 
+    #[error("Semantic error: {0}")]
+    SemanticError(&'static str),
+
     #[error("Assmebly generation failed: {0}")]
     AsmGenError(&'static str),
 

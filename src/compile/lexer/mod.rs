@@ -37,6 +37,7 @@ pub(super) enum Token {
     GreaterThan,
     Leq,
     Geq,
+    Equal,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -154,7 +155,7 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                         length = 2;
                         Token::DoubleEqual
                     }
-                    Some(_) | None => return Err(Error::LexerError { char: '=' }),
+                    Some(_) | None => Token::Equal,
                 },
                 c => {
                     return Err(Error::LexerError { char: *c });

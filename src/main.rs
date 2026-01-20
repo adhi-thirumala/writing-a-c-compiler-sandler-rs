@@ -27,6 +27,9 @@ struct Cli {
 
     #[arg(long)]
     tacky: bool,
+
+    #[arg(long)]
+    validate: bool,
 }
 
 //driver
@@ -63,6 +66,7 @@ fn main() {
         cli.parse,
         cli.codegen,
         cli.tacky,
+        cli.validate,
     );
     //dont care if removing fails
     match compile {
@@ -75,7 +79,7 @@ fn main() {
     }
 
     //assembler and linker
-    if !cli.s && !(cli.lex || cli.parse || cli.codegen || cli.tacky) {
+    if !cli.s && !(cli.lex || cli.parse || cli.codegen || cli.tacky || cli.validate) {
         let assemble = Command::new("gcc")
             .arg(stem.with_extension("s"))
             .arg("-o")

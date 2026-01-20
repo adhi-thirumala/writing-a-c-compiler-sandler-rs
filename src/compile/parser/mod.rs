@@ -10,12 +10,28 @@ pub(super) enum Program {
 
 #[derive(Debug)]
 pub(super) enum FunctionDefinition {
-    Function { name: String, body: Statement },
+    Function { name: String, body: Vec<BlockItem> },
+}
+
+#[derive(Debug)]
+pub(super) enum BlockItem {
+    S(Statement),
+    D(Declaration),
 }
 
 #[derive(Debug)]
 pub(super) enum Statement {
     Return(Expression),
+    Expression(Expression),
+    Null,
+}
+
+#[derive(Debug)]
+pub(super) enum Declaration {
+    Declaration {
+        name: String,
+        init: Option<Expression>,
+    },
 }
 
 #[derive(Debug)]
@@ -27,6 +43,11 @@ pub(super) enum Expression {
     },
     Binary {
         binary_operator: BinaryOperator,
+        left_expression: Box<Expression>,
+        right_expression: Box<Expression>,
+    },
+    Var(String),
+    Assignment {
         left_expression: Box<Expression>,
         right_expression: Box<Expression>,
     },
@@ -59,26 +80,7 @@ pub(super) enum BinaryOperator {
     Leq,
     GreaterThan,
     Geq,
-}
-
-impl BinaryOperator {
-    pub(super) fn precedence(&self) -> i64 {
-        match self {
-            BinaryOperator::Multiply | BinaryOperator::Divide | BinaryOperator::Remainder => 50,
-            BinaryOperator::Add | BinaryOperator::Subtract => 45,
-            BinaryOperator::RightShift | BinaryOperator::LeftShift => 40,
-            BinaryOperator::LessThan
-            | BinaryOperator::Leq
-            | BinaryOperator::GreaterThan
-            | BinaryOperator::Geq => 39,
-            BinaryOperator::NotEqual | BinaryOperator::Equal => 38,
-            BinaryOperator::BitwiseAnd => 35,
-            BinaryOperator::BitwiseXor => 34,
-            BinaryOperator::BitwiseOr => 33,
-            BinaryOperator::And => 30,
-            BinaryOperator::Or => 29,
-        }
-    }
+    Assigmnent,
 }
 
 macro_rules! expect {
@@ -121,19 +123,63 @@ fn parse_function(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Fu
     expect!(iter, Token::Void => ())?;
     expect!(iter, Token::ClosedParenthesis => ())?;
     expect!(iter, Token::OpenBrace => ())?;
-    let statement = parse_statement(iter)?;
+    let mut body = Vec::new();
+    while !matches!(iter.peek(), Some(Token::ClosedBrace)) {
+        body.push(parse_block_item(iter)?);
+    }
     expect!(iter, Token::ClosedBrace => ())?;
     Ok(FunctionDefinition::Function {
         name: identifier,
-        body: statement,
+        body: body,
+    })
+}
+
+fn parse_block_item(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<BlockItem> {
+    if let Some(Token::Int) = iter.peek() {
+        Ok(BlockItem::D(parse_declaration(iter)?))
+    } else {
+        Ok(BlockItem::S(parse_statement(iter)?))
+    }
+}
+
+fn parse_declaration(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Declaration> {
+    expect!(iter, Token::Int => ())?;
+    let identifier = expect!(iter, Token::Identifier(id) => id)?;
+    let init = if let Some(Token::Equal) = iter.peek() {
+        iter.next();
+        Some(parse_expression(iter, 0)?)
+    } else {
+        None
+    };
+    expect!(iter, Token::Semicolon => ())?;
+    Ok(Declaration::Declaration {
+        name: identifier,
+        init: init,
     })
 }
 
 fn parse_statement(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Statement> {
-    expect!(iter, Token::Return => ())?;
-    let expression = parse_expression(iter, 0)?;
-    expect!(iter, Token::Semicolon => ())?;
-    Ok(Statement::Return(expression))
+    match iter.peek() {
+        Some(Token::Return) => {
+            iter.next();
+            let expression = parse_expression(iter, 0)?;
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(Statement::Return(expression))
+        }
+        Some(Token::Semicolon) => {
+            iter.next();
+            Ok(Statement::Null)
+        }
+        Some(_) => {
+            let expression = parse_expression(iter, 0)?;
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(Statement::Expression(expression))
+        }
+        None => Err(Error::ParserError {
+            expected: "beginning of stateent".to_string(),
+            found: "end of file".to_string(),
+        }),
+    }
 }
 
 fn parse_expression(
@@ -145,11 +191,18 @@ fn parse_expression(
         && binop.precedence() >= min_precedence
     {
         iter.next();
-        left = Expression::Binary {
-            left_expression: Box::new(left),
-            right_expression: Box::new(parse_expression(iter, binop.precedence() + 1)?),
-            binary_operator: binop,
-        };
+        if let eq @ BinaryOperator::Assigmnent = binop {
+            left = Expression::Assignment {
+                left_expression: Box::new(left),
+                right_expression: Box::new(parse_expression(iter, eq.precedence())?),
+            };
+        } else {
+            left = Expression::Binary {
+                left_expression: Box::new(left),
+                right_expression: Box::new(parse_expression(iter, binop.precedence() + 1)?),
+                binary_operator: binop,
+            };
+        }
     }
     Ok(left)
 }
@@ -169,6 +222,11 @@ fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr
             let inner = parse_expression(iter, 0)?;
             expect!(iter, Token::ClosedParenthesis => ())?;
             Ok(inner)
+        }
+        Token::Identifier(id) => {
+            let id = id.clone();
+            iter.next();
+            Ok(Expression::Var(id))
         }
         Token::Tilde | Token::Hyphen | Token::Exclamation => Ok(Expression::Unary {
             unary_operator: parse_unary(iter)?,
@@ -217,6 +275,7 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
         Some(Token::Leq) => Ok(BinaryOperator::Leq),
         Some(Token::GreaterThan) => Ok(BinaryOperator::GreaterThan),
         Some(Token::Geq) => Ok(BinaryOperator::Geq),
+        Some(Token::Equal) => Ok(BinaryOperator::Assigmnent),
         Some(tok) => Err(Error::ParserError {
             expected: "binary operator".to_string(),
             found: tok.to_string(),
@@ -225,5 +284,26 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
             expected: "beginning of binary expression".to_string(),
             found: "end of string".to_string(),
         }),
+    }
+}
+
+impl BinaryOperator {
+    pub(super) fn precedence(&self) -> i64 {
+        match self {
+            BinaryOperator::Multiply | BinaryOperator::Divide | BinaryOperator::Remainder => 50,
+            BinaryOperator::Add | BinaryOperator::Subtract => 45,
+            BinaryOperator::RightShift | BinaryOperator::LeftShift => 40,
+            BinaryOperator::LessThan
+            | BinaryOperator::Leq
+            | BinaryOperator::GreaterThan
+            | BinaryOperator::Geq => 39,
+            BinaryOperator::NotEqual | BinaryOperator::Equal => 38,
+            BinaryOperator::BitwiseAnd => 35,
+            BinaryOperator::BitwiseXor => 34,
+            BinaryOperator::BitwiseOr => 33,
+            BinaryOperator::And => 30,
+            BinaryOperator::Or => 29,
+            BinaryOperator::Assigmnent => 20,
+        }
     }
 }

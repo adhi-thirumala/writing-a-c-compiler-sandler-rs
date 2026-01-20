@@ -128,7 +128,7 @@ impl CodeEmitter for asm_gen::Instruction {
                 operand.emit_one_byte(writer)?;
                 write!(writer, "\n")?;
             }
-            asm_gen::Instruction::Label(label) => write!(writer, ".L{}:", label)?,
+            asm_gen::Instruction::Label(label) => writeln!(writer, ".L{}:", label)?,
         }
         Ok(())
     }

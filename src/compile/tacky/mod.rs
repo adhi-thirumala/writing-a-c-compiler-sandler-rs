@@ -79,7 +79,7 @@ pub(super) enum BinaryOperator {
     Geq,
 }
 
-static COUNTER: AtomicI64 = AtomicI64::new(0);
+pub(super) static TACKY_COUNTER: AtomicI64 = AtomicI64::new(0);
 
 pub(super) fn tacky_gen(ast: parser::Program) -> Result<Program> {
     Ok(parse_program(ast))
@@ -94,18 +94,40 @@ fn parse_program(program: parser::Program) -> Program {
 }
 
 fn parse_function(function: parser::FunctionDefinition) -> FunctionDefinition {
-    match function {
-        parser::FunctionDefinition::Function { name, body } => FunctionDefinition::Function {
-            body: match body {
-                parser::Statement::Return(expression) => {
-                    let mut instructions = Vec::new();
-                    let dst = parse_expression_to_tacky(&name, expression, &mut instructions);
-                    instructions.push(Instruction::Return(dst));
-                    instructions
-                }
-            },
-            identifier: name,
+    let parser::FunctionDefinition::Function { name, body } = function;
+    let mut instructions = Vec::new();
+    body.into_iter()
+        .for_each(|block_item| parse_block_item(&name, block_item, &mut instructions));
+    instructions.push(Instruction::Return(Value::Constant(0)));
+    FunctionDefinition::Function {
+        identifier: name,
+        body: instructions,
+    }
+}
+
+fn parse_block_item(
+    function_name: &str,
+    block_item: parser::BlockItem,
+    instructions: &mut Vec<Instruction>,
+) {
+    match block_item {
+        parser::BlockItem::S(statement) => match statement {
+            parser::Statement::Return(expression) => {
+                let ret = Instruction::Return(parse_expression_to_tacky(
+                    function_name,
+                    expression,
+                    instructions,
+                ));
+                instructions.push(ret);
+            }
+            parser::Statement::Expression(expression) => {
+                parse_expression_to_tacky(function_name, expression, instructions);
+            }
+            parser::Statement::Null => (),
         },
+        parser::BlockItem::D(declaration) => {
+            parse_declaration(function_name, declaration, instructions)
+        }
     }
 }
 
@@ -215,6 +237,37 @@ fn parse_expression_to_tacky(
             });
             dst
         }
+        parser::Expression::Var(val) => Value::Var(val),
+        parser::Expression::Assignment {
+            left_expression,
+            right_expression,
+        } => {
+            if let parser::Expression::Var(val) = *left_expression {
+                let src = parse_expression_to_tacky(function_name, *right_expression, instructions);
+                instructions.push(Instruction::Copy {
+                    src: src,
+                    dst: Value::Var(val.clone()),
+                });
+                Value::Var(val)
+            } else {
+                unreachable!("semantic analysis checked")
+            }
+        }
+    }
+}
+
+fn parse_declaration(
+    function_name: &str,
+    declaration: parser::Declaration,
+    instructions: &mut Vec<Instruction>,
+) {
+    let parser::Declaration::Declaration { init, name } = declaration;
+    if let Some(expression) = init {
+        let val = parse_expression_to_tacky(function_name, expression, instructions);
+        instructions.push(Instruction::Copy {
+            src: val,
+            dst: Value::Var(name),
+        });
     }
 }
 
@@ -240,6 +293,7 @@ fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOpera
         parser::BinaryOperator::RightShift => BinaryOperator::RightShift,
         parser::BinaryOperator::And => unreachable!("cant get to and since we hit the case above"),
         parser::BinaryOperator::Or => unreachable!("cant get to or since we hit the case above"),
+        parser::BinaryOperator::Assigmnent => unreachable!("unconstructable"),
         parser::BinaryOperator::Equal => BinaryOperator::Equal,
         parser::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
         parser::BinaryOperator::LessThan => BinaryOperator::LessThan,
@@ -250,13 +304,13 @@ fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOpera
 }
 
 fn make_temp_identifier(function_name: &str) -> String {
-    let temp_name = format!("{}-tmp.{:?}", function_name, COUNTER);
-    COUNTER.fetch_add(1, Relaxed);
+    let temp_name = format!("{}-tmp.{:?}", function_name, TACKY_COUNTER);
+    TACKY_COUNTER.fetch_add(1, Relaxed);
     temp_name
 }
 
 fn make_temp_label(function_name: &str) -> String {
-    let temp_name = format!("{}_tmp_label.{:?}", function_name, COUNTER);
-    COUNTER.fetch_add(1, Relaxed);
+    let temp_name = format!("{}_tmp_label.{:?}", function_name, TACKY_COUNTER);
+    TACKY_COUNTER.fetch_add(1, Relaxed);
     temp_name
 }
