@@ -52,6 +52,16 @@ pub(super) enum Expression {
         right_expression: Box<Expression>,
         operator: Option<BinaryOperator>,
     },
+    Postfix {
+        postfix_operator: PostfixOperator,
+        expression: Box<Expression>,
+    },
+}
+
+#[derive(Debug)]
+pub(super) enum PostfixOperator {
+    Increment,
+    Decrement,
 }
 
 #[derive(Debug)]
@@ -228,21 +238,69 @@ fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr
             iter.next();
             Ok(Expression::IntConstant(val))
         }
+
+        //only valid l value as of now
+        Token::Identifier(id) => {
+            let id = id.clone();
+            iter.next();
+            let next = iter.peek();
+            if let Some(Token::DoublePlus) = next {
+                iter.next();
+                Ok(Expression::Postfix {
+                    postfix_operator: PostfixOperator::Increment,
+                    expression: Box::new(Expression::Var(id)),
+                })
+            } else if let Some(Token::DoubleHyphen) = next {
+                iter.next();
+                Ok(Expression::Postfix {
+                    postfix_operator: PostfixOperator::Decrement,
+                    expression: Box::new(Expression::Var(id)),
+                })
+            } else {
+                Ok(Expression::Var(id))
+            }
+        }
         Token::OpenParenthesis => {
             iter.next();
             let inner = parse_expression(iter, 0)?;
             expect!(iter, Token::ClosedParenthesis => ())?;
-            Ok(inner)
-        }
-        Token::Identifier(id) => {
-            let id = id.clone();
-            iter.next();
-            Ok(Expression::Var(id))
+            let next = iter.peek();
+            if let Some(Token::DoublePlus) = next {
+                iter.next();
+                Ok(Expression::Postfix {
+                    postfix_operator: PostfixOperator::Increment,
+                    expression: Box::new(inner),
+                })
+            } else if let Some(Token::DoubleHyphen) = next {
+                iter.next();
+                Ok(Expression::Postfix {
+                    postfix_operator: PostfixOperator::Decrement,
+                    expression: Box::new(inner),
+                })
+            } else {
+                Ok(inner)
+            }
         }
         Token::Tilde | Token::Hyphen | Token::Exclamation => Ok(Expression::Unary {
             unary_operator: parse_unary(iter)?,
             expression: Box::new(parse_factor(iter)?),
         }),
+        tok @ (Token::DoublePlus | Token::DoubleHyphen) => {
+            //prefix increment and decrement just
+            //turn into existing constructs
+            let binop = match tok {
+                Token::DoublePlus => BinaryOperator::Add,
+                Token::DoubleHyphen => BinaryOperator::Subtract,
+                _ => unreachable!("checked above"),
+            };
+            iter.next();
+            let left = parse_expression(iter, 0)?;
+            Ok(Expression::Assignment {
+                left_expression: Box::new(left),
+                right_expression: Box::new(Expression::IntConstant(1)),
+                operator: Some(binop),
+            })
+        }
         tok => Err(Error::ParserError {
             expected: "beginning of factor".to_string(),
             found: tok.to_string(),

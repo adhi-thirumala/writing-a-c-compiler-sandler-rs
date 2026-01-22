@@ -1,4 +1,4 @@
-use crate::compile::parser;
+use super::parser;
 use crate::error::Result;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering::Relaxed;
@@ -138,6 +138,8 @@ fn parse_expression_to_tacky(
 ) -> Value {
     match expression {
         parser::Expression::IntConstant(val) => Value::Constant(val),
+        parser::Expression::Var(val) => Value::Var(val),
+
         parser::Expression::Unary {
             unary_operator,
             expression,
@@ -151,6 +153,7 @@ fn parse_expression_to_tacky(
             });
             dst
         }
+
         parser::Expression::Binary {
             binary_operator: parser::BinaryOperator::And,
             left_expression,
@@ -237,7 +240,7 @@ fn parse_expression_to_tacky(
             });
             dst
         }
-        parser::Expression::Var(val) => Value::Var(val),
+
         parser::Expression::Assignment {
             left_expression,
             right_expression,
@@ -264,6 +267,25 @@ fn parse_expression_to_tacky(
                 unreachable!("semantic analysis checked")
             }
         }
+        parser::Expression::Postfix {
+            postfix_operator,
+            expression,
+        } => {
+            let binop = parse_postfix_operator(postfix_operator);
+            let src = parse_expression_to_tacky(function_name, *expression, instructions);
+            let dst = Value::Var(make_temp_identifier(function_name));
+            instructions.push(Instruction::Copy {
+                src: src.clone(),
+                dst: dst.clone(),
+            });
+            instructions.push(Instruction::BinaryOperator {
+                binary_operator: binop,
+                src1: src.clone(),
+                src2: Value::Constant(1),
+                dst: src,
+            });
+            dst
+        }
     }
 }
 
@@ -279,6 +301,13 @@ fn parse_declaration(
             src: val,
             dst: Value::Var(name),
         });
+    }
+}
+
+fn parse_postfix_operator(postfix_operator: parser::PostfixOperator) -> BinaryOperator {
+    match postfix_operator {
+        parser::PostfixOperator::Increment => BinaryOperator::Add,
+        parser::PostfixOperator::Decrement => BinaryOperator::Subtract,
     }
 }
 

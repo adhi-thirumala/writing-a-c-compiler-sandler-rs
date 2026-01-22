@@ -103,6 +103,14 @@ fn resolve_expression(
             resolve_expression(left_expression, variable_map)?;
             resolve_expression(right_expression, variable_map)?;
         }
+
+        parser::Expression::Postfix { expression, .. } => {
+            if let parser::Expression::Var(_) = **expression {
+                resolve_expression(expression, variable_map)?
+            } else {
+                return Err(Error::SemanticError("invalid lvalue"));
+            }
+        }
         parser::Expression::IntConstant(_) => (),
     }
     Ok(())
