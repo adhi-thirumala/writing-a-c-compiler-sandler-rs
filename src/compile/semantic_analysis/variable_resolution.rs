@@ -79,7 +79,9 @@ fn resolve_statement(
             }
             Ok(())
         }
-        parser::Statement::Null => Ok(()),
+        parser::Statement::Goto(_) | parser::Statement::Label(_) | parser::Statement::Null => {
+            Ok(())
+        }
     }
 }
 
@@ -93,12 +95,8 @@ fn resolve_expression(
             right_expression,
             ..
         } => {
-            if let parser::Expression::Var(_) = **left_expression {
-                resolve_expression(left_expression, variable_map)?;
-                resolve_expression(right_expression, variable_map)?;
-            } else {
-                return Err(Error::SemanticError("invalid lvalue"));
-            }
+            resolve_expression(left_expression, variable_map)?;
+            resolve_expression(right_expression, variable_map)?;
         }
         parser::Expression::Var(identifier) => match variable_map.get(identifier) {
             Some(val) => *identifier = val.to_string(),
@@ -117,11 +115,7 @@ fn resolve_expression(
         }
 
         parser::Expression::Postfix { expression, .. } => {
-            if let parser::Expression::Var(_) = **expression {
-                resolve_expression(expression, variable_map)?
-            } else {
-                return Err(Error::SemanticError("invalid lvalue"));
-            }
+            resolve_expression(expression, variable_map)?
         }
         parser::Expression::Conditional {
             condition,
