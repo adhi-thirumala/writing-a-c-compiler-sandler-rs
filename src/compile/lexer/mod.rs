@@ -53,6 +53,7 @@ pub(super) enum Token {
     Else,
     QuestionMark,
     Colon,
+    Goto,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -70,8 +71,9 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                 // all keywords
                 toks.push(match m.as_str() {
                     "if" => Token::If,
-                    "else" => Token::Else,
                     "int" => Token::Int,
+                    "goto" => Token::Goto,
+                    "else" => Token::Else,
                     "void" => Token::Void,
                     "return" => Token::Return,
                     s => Token::Identifier(s.to_string()),
