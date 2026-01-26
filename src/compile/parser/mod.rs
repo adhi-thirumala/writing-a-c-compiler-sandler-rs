@@ -1,7 +1,10 @@
-use std::iter::Peekable;
+use itertools::PeekNth;
+use itertools::peek_nth;
 
 use crate::compile::lexer::Token;
 use crate::error::{Error, Result};
+
+type TokenStream = PeekNth<std::vec::IntoIter<Token>>;
 
 #[derive(Debug)]
 pub(super) enum Program {
@@ -28,6 +31,8 @@ pub(super) enum Statement {
         then_statement: Box<Statement>,
         else_statement: Option<Box<Statement>>,
     },
+    Goto(String),
+    Label(String),
     Null,
 }
 
@@ -79,6 +84,8 @@ pub(super) enum UnaryOperator {
     Complement,
     Negate,
     Not,
+    Increment,
+    Decrement,
 }
 
 #[derive(Debug)]
@@ -123,7 +130,7 @@ macro_rules! expect {
 }
 
 pub(super) fn parser(toks: Vec<Token>) -> Result<Program> {
-    let mut iter = toks.into_iter().peekable();
+    let mut iter = peek_nth(toks.into_iter());
     let program = parse_program(&mut iter)?;
     match iter.next() {
         Some(tok) => Err(Error::ParserError {
@@ -135,11 +142,11 @@ pub(super) fn parser(toks: Vec<Token>) -> Result<Program> {
 }
 
 // <program> ::= <function>
-fn parse_program(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Program> {
+fn parse_program(iter: &mut TokenStream) -> Result<Program> {
     Ok(Program::Program(parse_function(iter)?))
 }
 
-fn parse_function(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<FunctionDefinition> {
+fn parse_function(iter: &mut TokenStream) -> Result<FunctionDefinition> {
     expect!(iter, Token::Int => ())?;
     let identifier = expect!(iter, Token::Identifier(id) => id)?;
     expect!(iter, Token::OpenParenthesis => ())?;
@@ -157,7 +164,7 @@ fn parse_function(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Fu
     })
 }
 
-fn parse_block_item(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<BlockItem> {
+fn parse_block_item(iter: &mut TokenStream) -> Result<BlockItem> {
     if let Some(Token::Int) = iter.peek() {
         Ok(BlockItem::D(parse_declaration(iter)?))
     } else {
@@ -165,7 +172,7 @@ fn parse_block_item(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<
     }
 }
 
-fn parse_declaration(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Declaration> {
+fn parse_declaration(iter: &mut TokenStream) -> Result<Declaration> {
     expect!(iter, Token::Int => ())?;
     let identifier = expect!(iter, Token::Identifier(id) => id)?;
     let init = if let Some(Token::Equal) = iter.peek() {
@@ -181,7 +188,7 @@ fn parse_declaration(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result
     })
 }
 
-fn parse_statement(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Statement> {
+fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
     match iter.peek() {
         Some(Token::Return) => {
             iter.next();
@@ -211,6 +218,29 @@ fn parse_statement(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<S
                 else_statement,
             })
         }
+        Some(Token::Goto) => {
+            iter.next();
+            let label = expect!(iter, Token::Identifier(label) => label)?;
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(Statement::Goto(label))
+        }
+        Some(Token::Identifier(_)) => {
+            //check if the next one is a colon, else just parse expression
+            match iter.peek_nth(1) {
+                Some(Token::Colon) => {
+                    let Some(Token::Identifier(label)) = iter.next() else {
+                        unreachable!("alr verified above")
+                    };
+                    iter.next();
+                    Ok(Statement::Label(label))
+                }
+                Some(_) | None => {
+                    let expression = parse_expression(iter, 0)?;
+                    expect!(iter, Token::Semicolon => ())?;
+                    Ok(Statement::Expression(expression))
+                }
+            }
+        }
         Some(_) => {
             let expression = parse_expression(iter, 0)?;
             expect!(iter, Token::Semicolon => ())?;
@@ -223,10 +253,7 @@ fn parse_statement(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<S
     }
 }
 
-fn parse_expression(
-    iter: &mut Peekable<impl Iterator<Item = Token>>,
-    min_precedence: i64,
-) -> Result<Expression> {
+fn parse_expression(iter: &mut TokenStream, min_precedence: i64) -> Result<Expression> {
     let mut left = parse_factor(iter)?;
     while let Ok(binop) = parse_binary(iter)
         && let curr_precedence = binop.precedence()
@@ -275,7 +302,7 @@ fn parse_expression(
     Ok(left)
 }
 
-fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expression> {
+fn parse_factor(iter: &mut TokenStream) -> Result<Expression> {
     match iter.peek().ok_or_else(|| Error::ParserError {
         expected: "factor".to_string(),
         found: "end of string".to_string(),
@@ -329,27 +356,15 @@ fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr
             }
         }
 
-        Token::Tilde | Token::Hyphen | Token::Exclamation => Ok(Expression::Unary {
+        Token::Tilde
+        | Token::Hyphen
+        | Token::Exclamation
+        | Token::DoublePlus
+        | Token::DoubleHyphen => Ok(Expression::Unary {
             unary_operator: parse_unary(iter)?,
             expression: Box::new(parse_factor(iter)?),
         }),
 
-        tok @ (Token::DoublePlus | Token::DoubleHyphen) => {
-            //prefix increment and decrement just
-            //turn into existing constructs
-            let binop = match tok {
-                Token::DoublePlus => BinaryOperator::Add,
-                Token::DoubleHyphen => BinaryOperator::Subtract,
-                _ => unreachable!("checked above"),
-            };
-            iter.next();
-            let left = parse_expression(iter, 0)?;
-            Ok(Expression::Assignment {
-                left_expression: Box::new(left),
-                right_expression: Box::new(Expression::IntConstant(1)),
-                operator: Some(binop),
-            })
-        }
         tok => Err(Error::ParserError {
             expected: "beginning of factor".to_string(),
             found: tok.to_string(),
@@ -357,11 +372,13 @@ fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr
     }
 }
 
-fn parse_unary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<UnaryOperator> {
+fn parse_unary(iter: &mut TokenStream) -> Result<UnaryOperator> {
     match iter.next() {
         Some(Token::Hyphen) => Ok(UnaryOperator::Negate),
         Some(Token::Tilde) => Ok(UnaryOperator::Complement),
         Some(Token::Exclamation) => Ok(UnaryOperator::Not),
+        Some(Token::DoublePlus) => Ok(UnaryOperator::Increment),
+        Some(Token::DoubleHyphen) => Ok(UnaryOperator::Decrement),
         Some(tok) => Err(Error::ParserError {
             expected: "unary operator".to_string(),
             found: tok.to_string(),
@@ -373,7 +390,7 @@ fn parse_unary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Unary
     }
 }
 
-fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<BinaryOperator> {
+fn parse_binary(iter: &mut TokenStream) -> Result<BinaryOperator> {
     match iter.peek() {
         Some(Token::Hyphen) => Ok(BinaryOperator::Subtract),
         Some(Token::Plus) => Ok(BinaryOperator::Add),
