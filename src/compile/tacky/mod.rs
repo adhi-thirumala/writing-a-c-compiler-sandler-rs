@@ -124,6 +124,36 @@ fn parse_block_item(
                 parse_expression_to_tacky(function_name, expression, instructions);
             }
             parser::Statement::Null => (),
+            parser::Statement::If {
+                condition,
+                then_statement,
+                else_statement,
+            } => {
+                let cond = parse_expression_to_tacky(function_name, condition, instructions);
+                let else_label = make_temp_label(function_name);
+                instructions.push(Instruction::JumpIfZero {
+                    target: else_label.clone(),
+                    condition: cond,
+                });
+                parse_block_item(
+                    function_name,
+                    parser::BlockItem::S(*then_statement),
+                    instructions,
+                );
+                if let Some(statement) = else_statement {
+                    let end_label = make_temp_label(function_name);
+                    instructions.push(Instruction::Jump(end_label.clone()));
+                    instructions.push(Instruction::Label(else_label));
+                    parse_block_item(
+                        function_name,
+                        parser::BlockItem::S(*statement),
+                        instructions,
+                    );
+                    instructions.push(Instruction::Label(end_label));
+                } else {
+                    instructions.push(Instruction::Label(else_label));
+                }
+            }
         },
         parser::BlockItem::D(declaration) => {
             parse_declaration(function_name, declaration, instructions)
@@ -139,7 +169,6 @@ fn parse_expression_to_tacky(
     match expression {
         parser::Expression::IntConstant(val) => Value::Constant(val),
         parser::Expression::Var(val) => Value::Var(val),
-
         parser::Expression::Unary {
             unary_operator,
             expression,
@@ -153,7 +182,6 @@ fn parse_expression_to_tacky(
             });
             dst
         }
-
         parser::Expression::Binary {
             binary_operator: parser::BinaryOperator::And,
             left_expression,
@@ -240,7 +268,6 @@ fn parse_expression_to_tacky(
             });
             dst
         }
-
         parser::Expression::Assignment {
             left_expression,
             right_expression,
@@ -285,6 +312,34 @@ fn parse_expression_to_tacky(
                 dst: src,
             });
             dst
+        }
+        parser::Expression::Conditional {
+            condition,
+            true_case,
+            false_case,
+        } => {
+            let c = parse_expression_to_tacky(function_name, *condition, instructions);
+            let end = make_temp_label(function_name);
+            let e2_label = make_temp_label(function_name);
+            instructions.push(Instruction::JumpIfZero {
+                target: e2_label.clone(),
+                condition: c,
+            });
+            let v1 = parse_expression_to_tacky(function_name, *true_case, instructions);
+            let result = Value::Var(make_temp_identifier(function_name));
+            instructions.push(Instruction::Copy {
+                src: v1,
+                dst: result.clone(),
+            });
+            instructions.push(Instruction::Jump(end.clone()));
+            instructions.push(Instruction::Label(e2_label));
+            let v2 = parse_expression_to_tacky(function_name, *false_case, instructions);
+            instructions.push(Instruction::Copy {
+                src: v2,
+                dst: result.clone(),
+            });
+            instructions.push(Instruction::Label(end));
+            result
         }
     }
 }
@@ -340,7 +395,8 @@ fn parse_binary_operator(binary_operator: parser::BinaryOperator) -> BinaryOpera
         parser::BinaryOperator::And
         | parser::BinaryOperator::Or
         | parser::BinaryOperator::Assigmnent
-        | parser::BinaryOperator::CompoundAssignment(_) => {
+        | parser::BinaryOperator::CompoundAssignment(_)
+        | parser::BinaryOperator::Ternary => {
             unreachable!("unconstructable")
         }
     }

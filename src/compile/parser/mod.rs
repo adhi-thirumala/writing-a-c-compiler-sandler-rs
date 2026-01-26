@@ -23,6 +23,11 @@ pub(super) enum BlockItem {
 pub(super) enum Statement {
     Return(Expression),
     Expression(Expression),
+    If {
+        condition: Expression,
+        then_statement: Box<Statement>,
+        else_statement: Option<Box<Statement>>,
+    },
     Null,
 }
 
@@ -55,6 +60,11 @@ pub(super) enum Expression {
     Postfix {
         postfix_operator: PostfixOperator,
         expression: Box<Expression>,
+    },
+    Conditional {
+        condition: Box<Expression>,
+        true_case: Box<Expression>,
+        false_case: Box<Expression>,
     },
 }
 
@@ -93,6 +103,7 @@ pub(super) enum BinaryOperator {
     Geq,
     Assigmnent,
     CompoundAssignment(Box<BinaryOperator>),
+    Ternary,
 }
 
 macro_rules! expect {
@@ -182,6 +193,24 @@ fn parse_statement(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<S
             iter.next();
             Ok(Statement::Null)
         }
+        Some(Token::If) => {
+            iter.next();
+            expect!(iter, Token::OpenParenthesis => ())?;
+            let condition = parse_expression(iter, 0)?;
+            expect!(iter, Token::ClosedParenthesis => ())?;
+            let then_statement = Box::new(parse_statement(iter)?);
+            let else_statement = if let Some(Token::Else) = iter.peek() {
+                iter.next();
+                Some(Box::new(parse_statement(iter)?))
+            } else {
+                None
+            };
+            Ok(Statement::If {
+                condition,
+                then_statement,
+                else_statement,
+            })
+        }
         Some(_) => {
             let expression = parse_expression(iter, 0)?;
             expect!(iter, Token::Semicolon => ())?;
@@ -217,6 +246,24 @@ fn parse_expression(
                 right_expression: Box::new(parse_expression(iter, curr_precedence)?),
                 operator: Some(*operator),
             };
+        } else if let BinaryOperator::Ternary = binop {
+            let middle = parse_expression(iter, 0)?;
+            if let Some(Token::Colon) = iter.peek() {
+                iter.next();
+                let right = parse_expression(iter, curr_precedence)?;
+                left = Expression::Conditional {
+                    condition: Box::new(left),
+                    true_case: Box::new(middle),
+                    false_case: Box::new(right),
+                };
+            } else {
+                return Err(Error::ParserError {
+                    expected: "colon".to_string(),
+                    found: iter
+                        .peek()
+                        .map_or("end of string".to_string(), |tok| tok.to_string()),
+                });
+            }
         } else {
             left = Expression::Binary {
                 left_expression: Box::new(left),
@@ -281,10 +328,12 @@ fn parse_factor(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr
                 Ok(inner)
             }
         }
+
         Token::Tilde | Token::Hyphen | Token::Exclamation => Ok(Expression::Unary {
             unary_operator: parse_unary(iter)?,
             expression: Box::new(parse_factor(iter)?),
         }),
+
         tok @ (Token::DoublePlus | Token::DoubleHyphen) => {
             //prefix increment and decrement just
             //turn into existing constructs
@@ -345,6 +394,7 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
         Some(Token::GreaterThan) => Ok(BinaryOperator::GreaterThan),
         Some(Token::Geq) => Ok(BinaryOperator::Geq),
         Some(Token::Equal) => Ok(BinaryOperator::Assigmnent),
+        Some(Token::QuestionMark) => Ok(BinaryOperator::Ternary),
         Some(Token::PlusEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
             BinaryOperator::Add,
         ))),
@@ -375,7 +425,6 @@ fn parse_binary(iter: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Bina
         Some(Token::GtGtEqual) => Ok(BinaryOperator::CompoundAssignment(Box::new(
             BinaryOperator::RightShift,
         ))),
-
         Some(tok) => Err(Error::ParserError {
             expected: "binary operator".to_string(),
             found: tok.to_string(),
@@ -403,6 +452,7 @@ impl BinaryOperator {
             BinaryOperator::BitwiseOr => 33,
             BinaryOperator::And => 30,
             BinaryOperator::Or => 29,
+            BinaryOperator::Ternary => 25,
             BinaryOperator::Assigmnent | BinaryOperator::CompoundAssignment(_) => 20,
         }
     }

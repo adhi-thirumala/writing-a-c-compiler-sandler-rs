@@ -49,6 +49,10 @@ pub(super) enum Token {
     GtGtEqual,
     DoubleHyphen,
     DoublePlus,
+    If,
+    Else,
+    QuestionMark,
+    Colon,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -65,6 +69,8 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
             Some(m) => {
                 // all keywords
                 toks.push(match m.as_str() {
+                    "if" => Token::If,
+                    "else" => Token::Else,
                     "int" => Token::Int,
                     "void" => Token::Void,
                     "return" => Token::Return,
@@ -228,6 +234,8 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                     }
                     Some(_) | None => Token::Equal,
                 },
+                '?' => Token::QuestionMark,
+                ':' => Token::Colon,
                 c => {
                     return Err(Error::LexerError { char: *c });
                 }

@@ -67,6 +67,18 @@ fn resolve_statement(
         parser::Statement::Return(expression) | parser::Statement::Expression(expression) => {
             resolve_expression(expression, variable_map)
         }
+        parser::Statement::If {
+            condition,
+            then_statement,
+            else_statement,
+        } => {
+            resolve_expression(condition, variable_map)?;
+            resolve_statement(&mut **then_statement, variable_map)?;
+            if let Some(statement) = else_statement {
+                resolve_statement(&mut **statement, variable_map)?;
+            }
+            Ok(())
+        }
         parser::Statement::Null => Ok(()),
     }
 }
@@ -110,6 +122,15 @@ fn resolve_expression(
             } else {
                 return Err(Error::SemanticError("invalid lvalue"));
             }
+        }
+        parser::Expression::Conditional {
+            condition,
+            true_case,
+            false_case,
+        } => {
+            resolve_expression(condition, variable_map)?;
+            resolve_expression(true_case, variable_map)?;
+            resolve_expression(false_case, variable_map)?;
         }
         parser::Expression::IntConstant(_) => (),
     }

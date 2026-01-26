@@ -5,8 +5,9 @@ mod parser;
 mod semantic_analysis;
 mod tacky;
 
-use crate::{compile::code_emission::code_emission, error::Result};
+use super::error::Result;
 use asm_gen::asm_gen;
+use code_emission::code_emission;
 use lexer::lexer;
 use parser::parser;
 use semantic_analysis::semantic_analysis;
