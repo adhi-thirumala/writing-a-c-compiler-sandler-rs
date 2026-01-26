@@ -192,7 +192,9 @@ fn parse_unary(unary_operator: tacky::UnaryOperator) -> UnaryOperator {
     match unary_operator {
         tacky::UnaryOperator::Complement => UnaryOperator::Not,
         tacky::UnaryOperator::Negate => UnaryOperator::Neg,
-        tacky::UnaryOperator::Not => unreachable!("pattern matching resolves this before"),
+        tacky::UnaryOperator::Increment
+        | tacky::UnaryOperator::Decrement
+        | tacky::UnaryOperator::Not => unreachable!("pattern matching resolves this before"),
     }
 }
 
