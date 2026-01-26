@@ -57,6 +57,8 @@ pub(super) enum UnaryOperator {
     Complement,
     Negate,
     Not,
+    Increment,
+    Decrement,
 }
 
 #[derive(Debug)]
@@ -154,6 +156,8 @@ fn parse_block_item(
                     instructions.push(Instruction::Label(else_label));
                 }
             }
+            parser::Statement::Goto(label) => instructions.push(Instruction::Jump(label)),
+            parser::Statement::Label(label) => instructions.push(Instruction::Label(label)),
         },
         parser::BlockItem::D(declaration) => {
             parse_declaration(function_name, declaration, instructions)
@@ -169,6 +173,31 @@ fn parse_expression_to_tacky(
     match expression {
         parser::Expression::IntConstant(val) => Value::Constant(val),
         parser::Expression::Var(val) => Value::Var(val),
+        parser::Expression::Unary {
+            unary_operator: parser::UnaryOperator::Increment,
+            expression,
+        } => parse_expression_to_tacky(
+            function_name,
+            parser::Expression::Assignment {
+                left_expression: expression,
+                right_expression: Box::new(parser::Expression::IntConstant(1)),
+                operator: Some(parser::BinaryOperator::Add),
+            },
+            instructions,
+        ),
+
+        parser::Expression::Unary {
+            unary_operator: parser::UnaryOperator::Decrement,
+            expression,
+        } => parse_expression_to_tacky(
+            function_name,
+            parser::Expression::Assignment {
+                left_expression: expression,
+                right_expression: Box::new(parser::Expression::IntConstant(1)),
+                operator: Some(parser::BinaryOperator::Subtract),
+            },
+            instructions,
+        ),
         parser::Expression::Unary {
             unary_operator,
             expression,
@@ -371,6 +400,8 @@ fn parse_unary_operator(unary_operator: parser::UnaryOperator) -> UnaryOperator 
         parser::UnaryOperator::Complement => UnaryOperator::Complement,
         parser::UnaryOperator::Negate => UnaryOperator::Negate,
         parser::UnaryOperator::Not => UnaryOperator::Not,
+        parser::UnaryOperator::Increment => UnaryOperator::Increment,
+        parser::UnaryOperator::Decrement => UnaryOperator::Decrement,
     }
 }
 
