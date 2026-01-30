@@ -13,13 +13,18 @@ pub(super) enum Program {
 
 #[derive(Debug)]
 pub(super) enum FunctionDefinition {
-    Function { name: String, body: Vec<BlockItem> },
+    Function { name: String, body: Block },
 }
 
 #[derive(Debug)]
 pub(super) enum BlockItem {
     S(Statement),
     D(Declaration),
+}
+
+#[derive(Debug)]
+pub(super) enum Block {
+    Block(Vec<BlockItem>),
 }
 
 #[derive(Debug)]
@@ -31,6 +36,7 @@ pub(super) enum Statement {
         then_statement: Box<Statement>,
         else_statement: Option<Box<Statement>>,
     },
+    Compound(Block),
     Goto(String),
     Label(String),
     Null,
@@ -148,20 +154,21 @@ fn parse_program(iter: &mut TokenStream) -> Result<Program> {
 
 fn parse_function(iter: &mut TokenStream) -> Result<FunctionDefinition> {
     expect!(iter, Token::Int => ())?;
-    let identifier = expect!(iter, Token::Identifier(id) => id)?;
+    let name = expect!(iter, Token::Identifier(id) => id)?;
     expect!(iter, Token::OpenParenthesis => ())?;
     expect!(iter, Token::Void => ())?;
     expect!(iter, Token::ClosedParenthesis => ())?;
+    let body = parse_block(iter)?;
+    Ok(FunctionDefinition::Function { name, body })
+}
+
+fn parse_block(iter: &mut TokenStream) -> Result<Block> {
     expect!(iter, Token::OpenBrace => ())?;
-    let mut body = Vec::new();
+    let mut block = Vec::new();
     while !matches!(iter.peek(), Some(Token::ClosedBrace)) {
-        body.push(parse_block_item(iter)?);
+        block.push(parse_block_item(iter)?);
     }
-    expect!(iter, Token::ClosedBrace => ())?;
-    Ok(FunctionDefinition::Function {
-        name: identifier,
-        body: body,
-    })
+    Ok(Block::Block(block))
 }
 
 fn parse_block_item(iter: &mut TokenStream) -> Result<BlockItem> {
@@ -224,6 +231,7 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
             expect!(iter, Token::Semicolon => ())?;
             Ok(Statement::Goto(label))
         }
+        Some(Token::OpenBrace) => Ok(Statement::Compound(parse_block(iter)?)),
         Some(Token::Identifier(_)) => {
             //check if the next one is a colon, else just parse expression
             match iter.peek_nth(1) {
