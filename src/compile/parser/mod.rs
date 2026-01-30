@@ -168,6 +168,7 @@ fn parse_block(iter: &mut TokenStream) -> Result<Block> {
     while !matches!(iter.peek(), Some(Token::ClosedBrace)) {
         block.push(parse_block_item(iter)?);
     }
+    iter.next(); //we checked that iter.peek() is closed brace here
     Ok(Block::Block(block))
 }
 
