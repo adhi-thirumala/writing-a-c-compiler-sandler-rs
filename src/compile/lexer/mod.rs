@@ -54,6 +54,11 @@ pub(super) enum Token {
     QuestionMark,
     Colon,
     Goto,
+    Do,
+    While,
+    For,
+    Break,
+    Continue,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -71,6 +76,11 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                 // all keywords
                 toks.push(match m.as_str() {
                     "if" => Token::If,
+                    "do" => Token::Do,
+                    "while" => Token::While,
+                    "for" => Token::For,
+                    "break" => Token::Break,
+                    "continue" => Token::Continue,
                     "int" => Token::Int,
                     "goto" => Token::Goto,
                     "else" => Token::Else,
