@@ -96,7 +96,10 @@ fn parse_program(program: parser::Program) -> Program {
 }
 
 fn parse_function(function: parser::FunctionDefinition) -> FunctionDefinition {
-    let parser::FunctionDefinition::Function { name, body } = function;
+    let parser::FunctionDefinition::Function {
+        name,
+        body: parser::Block::Block(body),
+    } = function;
     let mut instructions = Vec::new();
     body.into_iter()
         .for_each(|block_item| parse_block_item(&name, block_item, &mut instructions));
@@ -158,6 +161,9 @@ fn parse_block_item(
             }
             parser::Statement::Goto(label) => instructions.push(Instruction::Jump(label)),
             parser::Statement::Label(label) => instructions.push(Instruction::Label(label)),
+            parser::Statement::Compound(parser::Block::Block(body)) => body
+                .into_iter()
+                .for_each(|block_item| parse_block_item(function_name, block_item, instructions)),
         },
         parser::BlockItem::D(declaration) => {
             parse_declaration(function_name, declaration, instructions)
