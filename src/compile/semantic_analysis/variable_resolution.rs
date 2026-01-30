@@ -10,7 +10,7 @@ struct MapEntry {
 }
 
 pub(super) fn variable_resolution(ast: &mut parser::Program) -> Result<()> {
-    let mut variable_map = HashMap::<String, String>::new();
+    let mut variable_map = HashMap::<String, MapEntry>::new();
     resolve_program(ast, &mut variable_map)
 }
 

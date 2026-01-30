@@ -23,7 +23,10 @@ fn resolve_program(program: &parser::Program) -> Result<()> {
 }
 
 fn resolve_function(function: &parser::FunctionDefinition) -> Result<()> {
-    let parser::FunctionDefinition::Function { body, .. } = function;
+    let parser::FunctionDefinition::Function {
+        body: parser::Block::Block(body),
+        ..
+    } = function;
     body.iter()
         .try_for_each(|block_item| resolve_block_item(block_item))
 }
@@ -52,6 +55,10 @@ fn resolve_statement(statement: &parser::Statement) -> Result<()> {
                 Ok(())
             }
         }
+
+        parser::Statement::Compound(parser::Block::Block(body)) => body
+            .iter()
+            .try_for_each(|block_item| resolve_block_item(block_item)),
         parser::Statement::Goto(_) | parser::Statement::Label(_) | parser::Statement::Null => {
             Ok(())
         }

@@ -13,7 +13,10 @@ fn resolve_program(program: &mut parser::Program) -> Result<()> {
 }
 
 fn resolve_function(function: &mut parser::FunctionDefinition) -> Result<()> {
-    let parser::FunctionDefinition::Function { body, .. } = function;
+    let parser::FunctionDefinition::Function {
+        body: parser::Block::Block(body),
+        ..
+    } = function;
     let mut labels = HashSet::new();
     body.iter_mut()
         .try_for_each(|block_item| resolve_block_item(block_item, &mut labels))

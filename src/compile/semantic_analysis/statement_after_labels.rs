@@ -14,7 +14,10 @@ fn resolve_program(program: &parser::Program) -> Result<()> {
 }
 
 fn resolve_function(function: &parser::FunctionDefinition) -> Result<()> {
-    let parser::FunctionDefinition::Function { body, .. } = function;
+    let parser::FunctionDefinition::Function {
+        body: parser::Block::Block(body),
+        ..
+    } = function;
     for window in body.windows(2) {
         if let [
             parser::BlockItem::S(parser::Statement::Label(_)),
