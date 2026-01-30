@@ -4,6 +4,11 @@ use super::TACKY_COUNTER;
 use super::parser;
 use std::collections::HashMap;
 
+struct MapEntry {
+    name: String,
+    from_current_block: bool,
+}
+
 pub(super) fn variable_resolution(ast: &mut parser::Program) -> Result<()> {
     let mut variable_map = HashMap::<String, String>::new();
     resolve_program(ast, &mut variable_map)
@@ -11,7 +16,7 @@ pub(super) fn variable_resolution(ast: &mut parser::Program) -> Result<()> {
 
 fn resolve_program(
     program: &mut parser::Program,
-    variable_map: &mut HashMap<String, String>,
+    variable_map: &mut HashMap<String, MapEntry>,
 ) -> Result<()> {
     match program {
         parser::Program::Program(function_definition) => {
@@ -22,18 +27,25 @@ fn resolve_program(
 
 fn resolve_function(
     function: &mut parser::FunctionDefinition,
-    variable_map: &mut HashMap<String, String>,
+    variable_map: &mut HashMap<String, MapEntry>,
 ) -> Result<()> {
     match function {
-        parser::FunctionDefinition::Function { body, .. } => body
-            .iter_mut()
-            .try_for_each(|block_item| resolve_block_item(block_item, variable_map)),
+        parser::FunctionDefinition::Function { body, .. } => resolve_block(body, variable_map),
     }
+}
+
+fn resolve_block(
+    block: &mut parser::Block,
+    variable_map: &mut HashMap<String, MapEntry>,
+) -> Result<()> {
+    let parser::Block::Block(body) = block;
+    body.iter_mut()
+        .try_for_each(|block_item| resolve_block_item(block_item, variable_map))
 }
 
 fn resolve_block_item(
     block_item: &mut parser::BlockItem,
-    variable_map: &mut HashMap<String, String>,
+    variable_map: &mut HashMap<String, MapEntry>,
 ) -> Result<()> {
     match block_item {
         parser::BlockItem::D(declaration) => resolve_declaration(declaration, variable_map),
@@ -43,14 +55,22 @@ fn resolve_block_item(
 
 fn resolve_declaration(
     declaration: &mut parser::Declaration,
-    variable_map: &mut HashMap<String, String>,
+    variable_map: &mut HashMap<String, MapEntry>,
 ) -> Result<()> {
     let parser::Declaration::Declaration { name, init } = declaration;
-    if variable_map.contains_key(name) {
+    if let Some(variable) = variable_map.get(name)
+        && variable.from_current_block == true
+    {
         Err(Error::SemanticError("duplicate declaration"))
     } else {
         let unique_name = make_temporary_name(name);
-        variable_map.insert(name.clone(), unique_name.clone());
+        variable_map.insert(
+            name.clone(),
+            MapEntry {
+                name: unique_name.clone(),
+                from_current_block: true,
+            },
+        );
         if let Some(expression) = init {
             resolve_expression(expression, variable_map)?;
         }
@@ -61,7 +81,7 @@ fn resolve_declaration(
 
 fn resolve_statement(
     statement: &mut parser::Statement,
-    variable_map: &mut HashMap<String, String>,
+    variable_map: &mut HashMap<String, MapEntry>,
 ) -> Result<()> {
     match statement {
         parser::Statement::Return(expression) | parser::Statement::Expression(expression) => {
@@ -82,12 +102,16 @@ fn resolve_statement(
         parser::Statement::Goto(_) | parser::Statement::Label(_) | parser::Statement::Null => {
             Ok(())
         }
+        parser::Statement::Compound(block) => {
+            let mut new_variable_map = copy_variable_map(variable_map);
+            resolve_block(block, &mut new_variable_map)
+        }
     }
 }
 
 fn resolve_expression(
     expression: &mut parser::Expression,
-    variable_map: &mut HashMap<String, String>,
+    variable_map: &mut HashMap<String, MapEntry>,
 ) -> Result<()> {
     match expression {
         parser::Expression::Assignment {
@@ -99,7 +123,7 @@ fn resolve_expression(
             resolve_expression(right_expression, variable_map)?;
         }
         parser::Expression::Var(identifier) => match variable_map.get(identifier) {
-            Some(val) => *identifier = val.to_string(),
+            Some(val) => *identifier = val.name.to_string(),
             None => return Err(Error::SemanticError("undeclared variable")),
         },
         parser::Expression::Unary { expression, .. } => {
@@ -135,4 +159,19 @@ fn make_temporary_name(name: &str) -> String {
     let temp_name = format!("tmp.{}.{:?}", name, TACKY_COUNTER);
     TACKY_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     temp_name
+}
+
+fn copy_variable_map(variable_map: &HashMap<String, MapEntry>) -> HashMap<String, MapEntry> {
+    variable_map
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                MapEntry {
+                    name: v.name.clone(),
+                    from_current_block: false,
+                },
+            )
+        })
+        .collect()
 }
