@@ -445,7 +445,7 @@ fn make_temp_identifier(function_name: &str) -> String {
     temp_name
 }
 
-fn make_temp_label(function_name: &str) -> String {
+pub(super) fn make_temp_label(function_name: &str) -> String {
     let temp_name = format!("{}_tmp_label.{:?}", function_name, TACKY_COUNTER);
     TACKY_COUNTER.fetch_add(1, Relaxed);
     temp_name

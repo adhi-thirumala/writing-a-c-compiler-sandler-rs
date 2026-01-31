@@ -99,13 +99,56 @@ fn resolve_statement(
             }
             Ok(())
         }
-        parser::Statement::Goto(_) | parser::Statement::Label(_) | parser::Statement::Null => {
-            Ok(())
-        }
         parser::Statement::Compound(block) => {
             let mut new_variable_map = copy_variable_map(variable_map);
             resolve_block(block, &mut new_variable_map)
         }
+        parser::Statement::While {
+            condition, body, ..
+        } => {
+            resolve_expression(condition, variable_map)?;
+            resolve_statement(body, variable_map)
+        }
+        parser::Statement::DoWhile {
+            condition, body, ..
+        } => {
+            resolve_expression(condition, variable_map)?;
+            resolve_statement(body, variable_map)
+        }
+        parser::Statement::For {
+            init,
+            condition,
+            post,
+            body,
+            ..
+        } => {
+            let mut new_variable_map = copy_variable_map(variable_map);
+            resolve_for_init(init, &mut new_variable_map);
+            if let Some(expression) = condition {
+                resolve_expression(expression, &mut new_variable_map)?;
+            }
+            if let Some(expression) = post {
+                resolve_expression(expression, &mut new_variable_map)?;
+            }
+            resolve_statement(body, &mut new_variable_map)
+        }
+
+        parser::Statement::Break(_)
+        | parser::Statement::Continue(_)
+        | parser::Statement::Goto(_)
+        | parser::Statement::Label(_)
+        | parser::Statement::Null => Ok(()),
+    }
+}
+
+fn resolve_for_init(
+    for_init: &mut parser::ForInit,
+    variable_map: &mut HashMap<String, MapEntry>,
+) -> Result<()> {
+    match for_init {
+        parser::ForInit::InitDecl(declaration) => resolve_declaration(declaration, variable_map),
+        parser::ForInit::InitExp(Some(expression)) => resolve_expression(expression, variable_map),
+        parser::ForInit::InitExp(None) => Ok(()),
     }
 }
 

@@ -1,4 +1,5 @@
 mod duplicate_labels;
+mod loop_labelling;
 mod lvalue_check;
 mod statement_after_labels;
 mod variable_resolution;
