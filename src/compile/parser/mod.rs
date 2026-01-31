@@ -39,7 +39,32 @@ pub(super) enum Statement {
     Compound(Block),
     Goto(String),
     Label(String),
+    Break(Option<String>),
+    Continue(Option<String>),
+    While {
+        condition: Expression,
+        body: Box<Statement>,
+        label: Option<String>,
+    },
+    DoWhile {
+        condition: Expression,
+        body: Box<Statement>,
+        label: Option<String>,
+    },
+    For {
+        init: ForInit,
+        condition: Option<Expression>,
+        post: Option<Expression>,
+        body: Box<Statement>,
+        label: Option<String>,
+    },
     Null,
+}
+
+#[derive(Debug)]
+pub(super) enum ForInit {
+    InitDecl(Declaration),
+    InitExp(Option<Expression>),
 }
 
 #[derive(Debug)]
@@ -131,6 +156,15 @@ macro_rules! expect {
                 expected: stringify!($pat).to_string(),
                 found: "end of file".to_string(),
             }),
+        }
+    };
+}
+
+macro_rules! parse_optional_expression {
+    ($iter:expr, $pat:pat) => {
+        match $iter.peek() {
+            Some($pat) => None, // if we find the symbol first, then no expression
+            Some(_) | None => Some(parse_expression($iter, 0)?),
         }
     };
 }
@@ -250,6 +284,58 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
                 }
             }
         }
+        Some(Token::Break) => {
+            iter.next();
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(Statement::Break(None))
+        }
+        Some(Token::Continue) => {
+            iter.next();
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(Statement::Continue(None))
+        }
+        Some(Token::While) => {
+            iter.next();
+            expect!(iter, Token::OpenParenthesis => ())?;
+            let condition = parse_expression(iter, 0)?;
+            expect!(iter, Token::ClosedParenthesis => ())?;
+            let body = Box::new(parse_statement(iter)?);
+            Ok(Statement::While {
+                condition,
+                body,
+                label: None,
+            })
+        }
+        Some(Token::Do) => {
+            iter.next();
+            let body = Box::new(parse_statement(iter)?);
+            expect!(iter, Token::While => ())?;
+            expect!(iter, Token::OpenParenthesis => ())?;
+            let condition = parse_expression(iter, 0)?;
+            expect!(iter, Token::ClosedParenthesis => ())?;
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(Statement::DoWhile {
+                condition,
+                body,
+                label: None,
+            })
+        }
+        Some(Token::For) => {
+            iter.next();
+            expect!(iter, Token::OpenParenthesis => ())?;
+            let init = parse_for_init(iter)?;
+            let condition = parse_optional_expression!(iter, Token::Semicolon);
+            let post = parse_optional_expression!(iter, Token::ClosedParenthesis);
+            expect!(iter, Token::ClosedParenthesis => ())?;
+            let body = Box::new(parse_statement(iter)?);
+            Ok(Statement::For {
+                init,
+                condition,
+                post,
+                body,
+                label: None,
+            })
+        }
         Some(_) => {
             let expression = parse_expression(iter, 0)?;
             expect!(iter, Token::Semicolon => ())?;
@@ -259,6 +345,17 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
             expected: "beginning of stateent".to_string(),
             found: "end of file".to_string(),
         }),
+    }
+}
+
+fn parse_for_init(iter: &mut TokenStream) -> Result<ForInit> {
+    match iter.peek() {
+        Some(Token::Int) => Ok(ForInit::InitDecl(parse_declaration(iter)?)),
+        Some(_) | None => {
+            let expression = parse_optional_expression!(iter, Token::Semicolon);
+            expect!(iter, Token::Semicolon => ())?;
+            Ok(ForInit::InitExp(expression))
+        }
     }
 }
 
