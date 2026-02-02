@@ -3,6 +3,18 @@ use crate::error::Result;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering::Relaxed;
 
+macro_rules! continue_format_string {
+    () => {
+        "continue_{}"
+    };
+}
+
+macro_rules! break_format_string {
+    () => {
+        "break_{}"
+    };
+}
+
 #[derive(Debug)]
 pub(super) enum Program {
     Program(FunctionDefinition),
@@ -116,58 +128,158 @@ fn parse_block_item(
     instructions: &mut Vec<Instruction>,
 ) {
     match block_item {
-        parser::BlockItem::S(statement) => match statement {
-            parser::Statement::Return(expression) => {
-                let ret = Instruction::Return(parse_expression_to_tacky(
-                    function_name,
-                    expression,
-                    instructions,
-                ));
-                instructions.push(ret);
-            }
-            parser::Statement::Expression(expression) => {
-                parse_expression_to_tacky(function_name, expression, instructions);
-            }
-            parser::Statement::Null => (),
-            parser::Statement::If {
-                condition,
-                then_statement,
-                else_statement,
-            } => {
-                let cond = parse_expression_to_tacky(function_name, condition, instructions);
-                let else_label = make_temp_label(function_name);
-                instructions.push(Instruction::JumpIfZero {
-                    target: else_label.clone(),
-                    condition: cond,
-                });
-                parse_block_item(
-                    function_name,
-                    parser::BlockItem::S(*then_statement),
-                    instructions,
-                );
-                if let Some(statement) = else_statement {
-                    let end_label = make_temp_label(function_name);
-                    instructions.push(Instruction::Jump(end_label.clone()));
-                    instructions.push(Instruction::Label(else_label));
-                    parse_block_item(
-                        function_name,
-                        parser::BlockItem::S(*statement),
-                        instructions,
-                    );
-                    instructions.push(Instruction::Label(end_label));
-                } else {
-                    instructions.push(Instruction::Label(else_label));
-                }
-            }
-            parser::Statement::Goto(label) => instructions.push(Instruction::Jump(label)),
-            parser::Statement::Label(label) => instructions.push(Instruction::Label(label)),
-            parser::Statement::Compound(parser::Block::Block(body)) => body
-                .into_iter()
-                .for_each(|block_item| parse_block_item(function_name, block_item, instructions)),
-        },
+        parser::BlockItem::S(statement) => parse_statement(function_name, statement, instructions),
         parser::BlockItem::D(declaration) => {
             parse_declaration(function_name, declaration, instructions)
         }
+    }
+}
+
+fn parse_statement(
+    function_name: &str,
+    statement: parser::Statement,
+    instructions: &mut Vec<Instruction>,
+) {
+    match statement {
+        parser::Statement::Return(expression) => {
+            let ret = Instruction::Return(parse_expression_to_tacky(
+                function_name,
+                expression,
+                instructions,
+            ));
+            instructions.push(ret);
+        }
+        parser::Statement::Expression(expression) => {
+            parse_expression_to_tacky(function_name, expression, instructions);
+        }
+        parser::Statement::Null => (),
+        parser::Statement::If {
+            condition,
+            then_statement,
+            else_statement,
+        } => {
+            let cond = parse_expression_to_tacky(function_name, condition, instructions);
+            let else_label = make_temp_label(function_name);
+            instructions.push(Instruction::JumpIfZero {
+                target: else_label.clone(),
+                condition: cond,
+            });
+            parse_statement(function_name, *then_statement, instructions);
+            if let Some(statement) = else_statement {
+                let end_label = make_temp_label(function_name);
+                instructions.push(Instruction::Jump(end_label.clone()));
+                instructions.push(Instruction::Label(else_label));
+                parse_statement(function_name, *statement, instructions);
+                instructions.push(Instruction::Label(end_label));
+            } else {
+                instructions.push(Instruction::Label(else_label));
+            }
+        }
+
+        parser::Statement::Goto(label) => instructions.push(Instruction::Jump(label)),
+        parser::Statement::Label(label) => instructions.push(Instruction::Label(label)),
+
+        parser::Statement::Compound(parser::Block::Block(body)) => body
+            .into_iter()
+            .for_each(|block_item| parse_block_item(function_name, block_item, instructions)),
+        parser::Statement::Break(label) => {
+            let Some(label) = label else {
+                unreachable!("semantic analysis checked that break has a value")
+            };
+            instructions.push(Instruction::Jump(format!(break_format_string!(), label)))
+        }
+        parser::Statement::Continue(label) => {
+            let Some(label) = label else {
+                unreachable!("semantic analysis checked that continue has a value")
+            };
+            instructions.push(Instruction::Jump(format!(continue_format_string!(), label)))
+        }
+        parser::Statement::While {
+            condition,
+            body,
+            label,
+        } => {
+            let Some(label) = label else {
+                unreachable!("semantic analysis checked that while has a value")
+            };
+            let continue_label = format!(continue_format_string!(), label);
+            let break_label = format!(break_format_string!(), label);
+            instructions.push(Instruction::Label(continue_label.clone()));
+            let val = parse_expression_to_tacky(function_name, condition, instructions);
+            instructions.push(Instruction::JumpIfZero {
+                target: break_label.clone(),
+                condition: val,
+            });
+            parse_statement(function_name, *body, instructions);
+            instructions.push(Instruction::Jump(continue_label));
+            instructions.push(Instruction::Label(break_label));
+        }
+        parser::Statement::DoWhile {
+            condition,
+            body,
+            label,
+        } => {
+            let Some(label) = label else {
+                unreachable!("semantic analysis checked that while has a value")
+            };
+            let continue_label = format!(continue_format_string!(), label);
+            let break_label = format!(break_format_string!(), label);
+            instructions.push(Instruction::Label(label.clone()));
+            parse_statement(function_name, *body, instructions);
+            instructions.push(Instruction::Label(continue_label));
+            let val = parse_expression_to_tacky(function_name, condition, instructions);
+            instructions.push(Instruction::JumpIfNotZero {
+                target: label,
+                condition: val,
+            });
+            instructions.push(Instruction::Label(break_label));
+        }
+        parser::Statement::For {
+            init,
+            condition,
+            post,
+            body,
+            label,
+        } => {
+            let Some(label) = label else {
+                unreachable!("semantic analysis checked that for has a label")
+            };
+            let continue_label = format!(continue_format_string!(), label);
+            let break_label = format!(break_format_string!(), label);
+
+            parse_for_init(function_name, init, instructions);
+            instructions.push(Instruction::Label(label.clone()));
+            if let Some(expression) = condition {
+                let val = parse_expression_to_tacky(function_name, expression, instructions);
+                instructions.push(Instruction::JumpIfZero {
+                    target: break_label.clone(),
+                    condition: val,
+                });
+            }
+            parse_statement(function_name, *body, instructions);
+            instructions.push(Instruction::Label(continue_label));
+            if let Some(expression) = post {
+                parse_expression_to_tacky(function_name, expression, instructions);
+            }
+            instructions.push(Instruction::Jump(label.clone()));
+            instructions.push(Instruction::Label(break_label));
+        }
+    }
+}
+
+fn parse_for_init(
+    function_name: &str,
+    for_init: parser::ForInit,
+    instructions: &mut Vec<Instruction>,
+) {
+    match for_init {
+        parser::ForInit::InitDecl(declaration) => {
+            parse_declaration(function_name, declaration, instructions);
+        }
+        parser::ForInit::InitExp(Some(expression)) => {
+            parse_expression_to_tacky(function_name, expression, instructions);
+        }
+        parser::ForInit::InitExp(None) => (),
     }
 }
 
