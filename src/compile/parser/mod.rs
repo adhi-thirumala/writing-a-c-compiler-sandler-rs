@@ -163,8 +163,15 @@ macro_rules! expect {
 macro_rules! parse_optional_expression {
     ($iter:expr, $pat:pat) => {
         match $iter.peek() {
-            Some($pat) => None, // if we find the symbol first, then no expression
-            Some(_) | None => Some(parse_expression($iter, 0)?),
+            Some($pat) => {
+                $iter.next();
+                None // if we find the symbol first, then no expression
+            }
+            Some(_) | None =>  {
+                let expression = parse_expression($iter, 0)?;
+                expect!($iter, $pat => ())?;
+                Some(expression)
+            }
         }
     };
 }
@@ -326,7 +333,6 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
             let init = parse_for_init(iter)?;
             let condition = parse_optional_expression!(iter, Token::Semicolon);
             let post = parse_optional_expression!(iter, Token::ClosedParenthesis);
-            expect!(iter, Token::ClosedParenthesis => ())?;
             let body = Box::new(parse_statement(iter)?);
             Ok(Statement::For {
                 init,
@@ -353,7 +359,6 @@ fn parse_for_init(iter: &mut TokenStream) -> Result<ForInit> {
         Some(Token::Int) => Ok(ForInit::InitDecl(parse_declaration(iter)?)),
         Some(_) | None => {
             let expression = parse_optional_expression!(iter, Token::Semicolon);
-            expect!(iter, Token::Semicolon => ())?;
             Ok(ForInit::InitExp(expression))
         }
     }
