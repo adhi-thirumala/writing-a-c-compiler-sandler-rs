@@ -48,17 +48,17 @@ fn resolve_statement(
         },
         parser::Statement::DoWhile { body, label, .. } => {
             let new_label = make_temp_label(function_name);
-            resolve_statement(body, loop_id, function_name)?;
+            resolve_statement(body, Some(&new_label), function_name)?;
             *label = Some(new_label);
         }
         parser::Statement::For { body, label, .. } => {
             let new_label = make_temp_label(function_name);
-            resolve_statement(body, loop_id, function_name)?;
+            resolve_statement(body, Some(&new_label), function_name)?;
             *label = Some(new_label);
         }
         parser::Statement::While { body, label, .. } => {
             let new_label = make_temp_label(function_name);
-            resolve_statement(body, loop_id, function_name)?;
+            resolve_statement(body, Some(&new_label), function_name)?;
             *label = Some(new_label);
         }
         parser::Statement::If {

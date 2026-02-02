@@ -56,12 +56,51 @@ fn resolve_statement(statement: &parser::Statement) -> Result<()> {
             }
         }
 
+        parser::Statement::While {
+            condition, body, ..
+        } => {
+            resolve_expression(condition)?;
+            resolve_statement(body)
+        }
+        parser::Statement::DoWhile {
+            condition, body, ..
+        } => {
+            resolve_expression(condition)?;
+            resolve_statement(body)
+        }
+        parser::Statement::For {
+            init,
+            condition,
+            post,
+            body,
+            ..
+        } => {
+            resolve_for_init(init)?;
+            if let Some(expression) = condition {
+                resolve_expression(expression)?;
+            }
+            if let Some(expression) = post {
+                resolve_expression(expression)?;
+            }
+            resolve_statement(body)
+        }
+
         parser::Statement::Compound(parser::Block::Block(body)) => body
             .iter()
             .try_for_each(|block_item| resolve_block_item(block_item)),
-        parser::Statement::Goto(_) | parser::Statement::Label(_) | parser::Statement::Null => {
-            Ok(())
-        }
+        parser::Statement::Break(_)
+        | parser::Statement::Continue(_)
+        | parser::Statement::Goto(_)
+        | parser::Statement::Label(_)
+        | parser::Statement::Null => Ok(()),
+    }
+}
+
+fn resolve_for_init(for_init: &parser::ForInit) -> Result<()> {
+    if let parser::ForInit::InitExp(Some(expression)) = for_init {
+        resolve_expression(expression)
+    } else {
+        Ok(())
     }
 }
 

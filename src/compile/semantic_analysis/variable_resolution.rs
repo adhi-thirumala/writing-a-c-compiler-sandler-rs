@@ -123,7 +123,7 @@ fn resolve_statement(
             ..
         } => {
             let mut new_variable_map = copy_variable_map(variable_map);
-            resolve_for_init(init, &mut new_variable_map);
+            resolve_for_init(init, &mut new_variable_map)?;
             if let Some(expression) = condition {
                 resolve_expression(expression, &mut new_variable_map)?;
             }

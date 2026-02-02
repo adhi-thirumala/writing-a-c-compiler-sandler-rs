@@ -9,6 +9,7 @@ use super::Result;
 use super::parser;
 use super::tacky::TACKY_COUNTER;
 use duplicate_labels::duplicate_labels_resolution;
+use loop_labelling::loop_label;
 use lvalue_check::check_lvalue;
 use statement_after_labels::statement_after_labels_resolution;
 use variable_resolution::variable_resolution;
@@ -19,5 +20,6 @@ pub(super) fn semantic_analysis(ast: parser::Program) -> Result<parser::Program>
     check_lvalue(&ast)?;
     duplicate_labels_resolution(&mut ast)?;
     statement_after_labels_resolution(&ast)?;
+    loop_label(&mut ast)?;
     Ok(ast)
 }
