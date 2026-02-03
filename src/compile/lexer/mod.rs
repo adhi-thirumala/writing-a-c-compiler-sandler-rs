@@ -59,6 +59,9 @@ pub(super) enum Token {
     For,
     Break,
     Continue,
+    Switch,
+    Case,
+    Default,
 }
 
 pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
@@ -86,6 +89,9 @@ pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
                     "else" => Token::Else,
                     "void" => Token::Void,
                     "return" => Token::Return,
+                    "switch" => Token::Switch,
+                    "case" => Token::Case,
+                    "default" => Token::Default,
                     s => Token::Identifier(s.to_string()),
                 });
                 input = &input[m.len()..];
