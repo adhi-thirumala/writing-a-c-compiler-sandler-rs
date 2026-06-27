@@ -38,7 +38,10 @@ pub(super) enum Statement {
     },
     Compound(Block),
     Goto(String),
-    Label(String),
+    Label {
+        label: String,
+        body: Box<Statement>,
+    },
     Break(Option<String>),
     Continue(Option<String>),
     While {
@@ -62,7 +65,7 @@ pub(super) enum Statement {
         condition: Expression,
         body: Box<Statement>,
         label: Option<String>,
-        case_expressions: Vec<Expression>,
+        case_expressions: Vec<i32>, //label values (when we fold, fill this after we fold)
         default: bool,
     },
     Case {
@@ -298,7 +301,8 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
                         unreachable!("alr verified above")
                     };
                     iter.next();
-                    Ok(Statement::Label(label))
+                    let body = Box::new(parse_statement(iter)?);
+                    Ok(Statement::Label { label, body })
                 }
                 Some(_) | None => {
                     let expression = parse_expression(iter, 0)?;
@@ -375,6 +379,7 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
         Some(Token::Case) => {
             iter.next();
             let condition = parse_expression(iter, 0)?;
+            expect!(iter, Token::Colon => ())?;
             let body = Box::new(parse_statement(iter)?);
             Ok(Statement::Case {
                 condition,
@@ -384,6 +389,7 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
         }
         Some(Token::Default) => {
             iter.next();
+            expect!(iter, Token::Colon => ())?;
             let body = Box::new(parse_statement(iter)?);
             Ok(Statement::Default { body, label: None })
         }

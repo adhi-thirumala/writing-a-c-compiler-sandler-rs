@@ -128,10 +128,13 @@ fn resolve_statement(
             })?
         }
 
+        parser::Statement::Label { body, .. } => {
+            resolve_statement(body, loop_id, switch_id, inner, function_name)?
+        }
+
         parser::Statement::Return(_)
         | parser::Statement::Expression(_)
         | parser::Statement::Goto(_)
-        | parser::Statement::Label(_)
         | parser::Statement::Null => (),
     }
     Ok(())

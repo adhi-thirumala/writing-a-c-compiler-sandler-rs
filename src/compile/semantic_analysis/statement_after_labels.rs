@@ -1,4 +1,8 @@
-use super::{Error, Result};
+/*
+ * turns out if you implement labels as "labelled statements" and not labels on your own, this
+ * ceases to be an issue, theoretically if we want to refactor to have C23, we could add label to
+ * have Option<Box<Statement>> or something idk.
+ * use super::{Error, Result};
 
 use super::parser;
 
@@ -34,3 +38,4 @@ fn resolve_function(function: &parser::FunctionDefinition) -> Result<()> {
     }
     Ok(())
 }
+*/

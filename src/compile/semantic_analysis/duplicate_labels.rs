@@ -36,7 +36,7 @@ fn resolve_statement(
     statement: &mut parser::Statement,
     labels: &mut HashSet<String>,
 ) -> Result<()> {
-    let parser::Statement::Label(label) = statement else {
+    let parser::Statement::Label { label, .. } = statement else {
         return Ok(());
     };
     if labels.contains(label) {

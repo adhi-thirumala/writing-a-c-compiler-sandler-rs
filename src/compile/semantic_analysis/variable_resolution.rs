@@ -140,10 +140,11 @@ fn resolve_statement(
 
         parser::Statement::Default { body, .. } => resolve_statement(body, variable_map),
 
+        parser::Statement::Label { body, .. } => resolve_statement(body, variable_map),
+
         parser::Statement::Break(_)
         | parser::Statement::Continue(_)
         | parser::Statement::Goto(_)
-        | parser::Statement::Label(_)
         | parser::Statement::Null => Ok(()),
     }
 }

@@ -189,7 +189,10 @@ fn parse_statement(
         }
 
         parser::Statement::Goto(label) => instructions.push(Instruction::Jump(label)),
-        parser::Statement::Label(label) => instructions.push(Instruction::Label(label)),
+        parser::Statement::Label { label, body } => {
+            instructions.push(Instruction::Label(label));
+            parse_statement(function_name, *body, instructions)
+        }
 
         parser::Statement::Compound(parser::Block::Block(body)) => body
             .into_iter()
@@ -290,10 +293,7 @@ fn parse_statement(
             let break_label = format!(break_format_string!(), label);
             let v = parse_expression_to_tacky(function_name, condition, instructions);
 
-            case_expressions.into_iter().for_each(|case| {
-                let parser::Expression::IntConstant(val) = case else {
-                    unreachable!("case expressions must be a integer constant")
-                };
+            case_expressions.into_iter().for_each(|val| {
                 let dest = make_temp_label(function_name);
                 instructions.push(Instruction::BinaryOperator {
                     binary_operator: BinaryOperator::Equal,
@@ -313,7 +313,7 @@ fn parse_statement(
                     label
                 )));
             }
-
+            instructions.push(Instruction::Jump(break_label.clone()));
             parse_statement(function_name, *body, instructions);
             instructions.push(Instruction::Label(break_label));
         }

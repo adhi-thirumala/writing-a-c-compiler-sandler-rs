@@ -2,6 +2,7 @@ mod duplicate_labels;
 mod loop_labelling;
 mod lvalue_check;
 mod statement_after_labels;
+mod switch_resolution;
 mod variable_resolution;
 
 use super::super::error::Error;
@@ -11,7 +12,7 @@ use super::tacky::TACKY_COUNTER;
 use duplicate_labels::duplicate_labels_resolution;
 use loop_labelling::loop_label;
 use lvalue_check::check_lvalue;
-use statement_after_labels::statement_after_labels_resolution;
+use switch_resolution::collect_cases;
 use variable_resolution::variable_resolution;
 
 pub(super) fn semantic_analysis(ast: parser::Program) -> Result<parser::Program> {
@@ -19,7 +20,7 @@ pub(super) fn semantic_analysis(ast: parser::Program) -> Result<parser::Program>
     variable_resolution(&mut ast)?;
     check_lvalue(&ast)?;
     duplicate_labels_resolution(&mut ast)?;
-    statement_after_labels_resolution(&ast)?;
+    collect_cases(&mut ast)?;
     loop_label(&mut ast)?;
     Ok(ast)
 }

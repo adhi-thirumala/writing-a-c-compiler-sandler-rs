@@ -96,10 +96,11 @@ fn resolve_statement(statement: &parser::Statement) -> Result<()> {
 
         parser::Statement::Default { body, .. } => resolve_statement(body),
 
+        parser::Statement::Label { body, .. } => resolve_statement(body),
+
         parser::Statement::Break(_)
         | parser::Statement::Continue(_)
         | parser::Statement::Goto(_)
-        | parser::Statement::Label(_)
         | parser::Statement::Null => Ok(()),
     }
 }
