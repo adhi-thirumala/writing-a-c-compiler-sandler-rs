@@ -15,6 +15,18 @@ macro_rules! break_format_string {
     };
 }
 
+macro_rules! case_format_string {
+    ($function_name:expr, $switch_label:expr, $val:expr) => {
+        format!("case_{}_{}_{}", $function_name, $switch_label, $val)
+    };
+}
+
+macro_rules! default_format_string {
+    ($function_name:expr, $switch_label:expr) => {
+        format!("default_{}_{}", $function_name, $switch_label)
+    };
+}
+
 #[derive(Debug)]
 pub(super) enum Program {
     Program(FunctionDefinition),
@@ -263,6 +275,69 @@ fn parse_statement(
             }
             instructions.push(Instruction::Jump(label.clone()));
             instructions.push(Instruction::Label(break_label));
+        }
+        parser::Statement::Switch {
+            condition,
+            body,
+            label,
+            case_expressions,
+            default,
+        } => {
+            let Some(label) = label else {
+                unreachable!("semantic analysis checked that for has a label")
+            };
+
+            let break_label = format!(break_format_string!(), label);
+            let v = parse_expression_to_tacky(function_name, condition, instructions);
+
+            case_expressions.into_iter().for_each(|case| {
+                let parser::Expression::IntConstant(val) = case else {
+                    unreachable!("case expressions must be a integer constant")
+                };
+                let dest = make_temp_label(function_name);
+                instructions.push(Instruction::BinaryOperator {
+                    binary_operator: BinaryOperator::Equal,
+                    src1: v.clone(),
+                    src2: Value::Constant(val),
+                    dst: Value::Var(dest.clone()),
+                });
+                instructions.push(Instruction::JumpIfNotZero {
+                    target: case_format_string!(function_name, label.clone(), val),
+                    condition: Value::Var(dest),
+                });
+            });
+
+            if default {
+                instructions.push(Instruction::Jump(default_format_string!(
+                    function_name,
+                    label
+                )));
+            }
+
+            parse_statement(function_name, *body, instructions);
+            instructions.push(Instruction::Label(break_label));
+        }
+        parser::Statement::Case {
+            condition,
+            body,
+            label,
+        } => {
+            let parser::Expression::IntConstant(val) = condition else {
+                unreachable!("semantic checking verifies that ase values only have constants")
+            };
+            instructions.push(Instruction::Label(case_format_string!(
+                function_name,
+                label.expect("must be labelled by now"),
+                val
+            )));
+            parse_statement(function_name, *body, instructions)
+        }
+        parser::Statement::Default { body, label } => {
+            instructions.push(Instruction::Label(default_format_string!(
+                function_name,
+                label.expect("must be labelled by now")
+            )));
+            parse_statement(function_name, *body, instructions)
         }
     }
 }

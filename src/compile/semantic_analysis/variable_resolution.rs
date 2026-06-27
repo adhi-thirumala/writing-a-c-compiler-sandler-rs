@@ -103,18 +103,7 @@ fn resolve_statement(
             let mut new_variable_map = copy_variable_map(variable_map);
             resolve_block(block, &mut new_variable_map)
         }
-        parser::Statement::While {
-            condition, body, ..
-        } => {
-            resolve_expression(condition, variable_map)?;
-            resolve_statement(body, variable_map)
-        }
-        parser::Statement::DoWhile {
-            condition, body, ..
-        } => {
-            resolve_expression(condition, variable_map)?;
-            resolve_statement(body, variable_map)
-        }
+
         parser::Statement::For {
             init,
             condition,
@@ -132,6 +121,24 @@ fn resolve_statement(
             }
             resolve_statement(body, &mut new_variable_map)
         }
+
+        parser::Statement::While {
+            condition, body, ..
+        }
+        | parser::Statement::DoWhile {
+            condition, body, ..
+        }
+        | parser::Statement::Switch {
+            condition, body, ..
+        }
+        | parser::Statement::Case {
+            condition, body, ..
+        } => {
+            resolve_expression(condition, variable_map)?;
+            resolve_statement(body, variable_map)
+        }
+
+        parser::Statement::Default { body, .. } => resolve_statement(body, variable_map),
 
         parser::Statement::Break(_)
         | parser::Statement::Continue(_)

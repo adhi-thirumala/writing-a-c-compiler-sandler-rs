@@ -58,6 +58,22 @@ pub(super) enum Statement {
         body: Box<Statement>,
         label: Option<String>,
     },
+    Switch {
+        condition: Expression,
+        body: Box<Statement>,
+        label: Option<String>,
+        case_expressions: Vec<Expression>,
+        default: bool,
+    },
+    Case {
+        condition: Expression,
+        body: Box<Statement>,
+        label: Option<String>,
+    },
+    Default {
+        body: Box<Statement>,
+        label: Option<String>,
+    },
     Null,
 }
 
@@ -341,6 +357,35 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
                 body,
                 label: None,
             })
+        }
+        Some(Token::Switch) => {
+            iter.next();
+            expect!(iter, Token::OpenParenthesis => ())?;
+            let condition = parse_expression(iter, 0)?;
+            expect!(iter, Token::ClosedParenthesis => ())?;
+            let body = Box::new(parse_statement(iter)?);
+            Ok(Statement::Switch {
+                condition,
+                body,
+                label: None,
+                case_expressions: Vec::new(),
+                default: false,
+            })
+        }
+        Some(Token::Case) => {
+            iter.next();
+            let condition = parse_expression(iter, 0)?;
+            let body = Box::new(parse_statement(iter)?);
+            Ok(Statement::Case {
+                condition,
+                body,
+                label: None,
+            })
+        }
+        Some(Token::Default) => {
+            iter.next();
+            let body = Box::new(parse_statement(iter)?);
+            Ok(Statement::Default { body, label: None })
         }
         Some(_) => {
             let expression = parse_expression(iter, 0)?;

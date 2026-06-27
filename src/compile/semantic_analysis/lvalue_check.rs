@@ -42,6 +42,7 @@ fn resolve_statement(statement: &parser::Statement) -> Result<()> {
     match statement {
         parser::Statement::Return(expression) => resolve_expression(expression),
         parser::Statement::Expression(expression) => resolve_expression(expression),
+
         parser::Statement::If {
             condition,
             then_statement,
@@ -56,18 +57,22 @@ fn resolve_statement(statement: &parser::Statement) -> Result<()> {
             }
         }
 
-        parser::Statement::While {
+        parser::Statement::Switch {
+            condition, body, ..
+        }
+        | parser::Statement::Case {
+            condition, body, ..
+        }
+        | parser::Statement::While {
+            condition, body, ..
+        }
+        | parser::Statement::DoWhile {
             condition, body, ..
         } => {
             resolve_expression(condition)?;
             resolve_statement(body)
         }
-        parser::Statement::DoWhile {
-            condition, body, ..
-        } => {
-            resolve_expression(condition)?;
-            resolve_statement(body)
-        }
+
         parser::Statement::For {
             init,
             condition,
@@ -88,6 +93,9 @@ fn resolve_statement(statement: &parser::Statement) -> Result<()> {
         parser::Statement::Compound(parser::Block::Block(body)) => body
             .iter()
             .try_for_each(|block_item| resolve_block_item(block_item)),
+
+        parser::Statement::Default { body, .. } => resolve_statement(body),
+
         parser::Statement::Break(_)
         | parser::Statement::Continue(_)
         | parser::Statement::Goto(_)
