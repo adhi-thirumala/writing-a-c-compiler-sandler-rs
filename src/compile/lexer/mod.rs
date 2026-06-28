@@ -1,10 +1,8 @@
 mod tokens;
-
 use crate::error::{Error, Result};
 use regex::Regex;
 
 pub use tokens::Token;
-
 pub(super) trait Lex {
     fn lex(self) -> Lexer;
 }
@@ -27,6 +25,7 @@ impl Lexer {
             pos: 0,
         }
     }
+
     fn trim(&mut self) {
         while self.pos < self.input.len() && self.chars[self.pos].is_ascii_whitespace() {
             self.pos += 1
@@ -37,7 +36,6 @@ impl Lexer {
         match self.id.find(&self.input[self.pos..]) {
             Some(m) => {
                 let str = m.as_str();
-                // all keywords
                 Some((
                     match str {
                         "if" => Token::If,
@@ -95,6 +93,8 @@ impl Lexer {
             '?' => (Token::QuestionMark, one_more),
             ':' => (Token::Colon, one_more),
             '~' => (Token::Tilde, one_more),
+            ',' => (Token::Comma, one_more),
+
             '-' => match second_char {
                 Some('-') => (Token::DoubleHyphen, two_more),
                 Some('=') => (Token::MinusEqual, two_more),
@@ -132,6 +132,14 @@ impl Lexer {
                 Some('=') => (Token::CarrotEqual, two_more),
                 Some(_) | None => (Token::Carrot, one_more),
             },
+            '!' => match second_char {
+                Some('=') => (Token::NotEqual, two_more),
+                Some(_) | None => (Token::Exclamation, one_more),
+            },
+            '=' => match second_char {
+                Some('=') => (Token::DoubleEqual, two_more),
+                Some(_) | None => (Token::Equal, one_more),
+            },
 
             '>' => match second_char {
                 Some('>') => match third_char {
@@ -149,14 +157,7 @@ impl Lexer {
                 Some('=') => (Token::Leq, two_more),
                 Some(_) | None => (Token::LessThan, one_more),
             },
-            '!' => match second_char {
-                Some('=') => (Token::NotEqual, two_more),
-                Some(_) | None => (Token::Exclamation, one_more),
-            },
-            '=' => match second_char {
-                Some('=') => (Token::DoubleEqual, two_more),
-                Some(_) | None => (Token::Equal, one_more),
-            },
+
             c => {
                 return Err(Error::LexerError { char: c });
             }
@@ -194,7 +195,10 @@ impl Iterator for Lexer {
                 self.pos = pos;
                 Some(Ok(token))
             }
-            Err(e) => Some(Err(e)),
+            Err(e) => {
+                self.pos = self.input.len() + 1;
+                Some(Err(e))
+            }
         }
     }
 }

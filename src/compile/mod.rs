@@ -25,7 +25,7 @@ pub(crate) fn compile(
 ) -> Result<()> {
     let toks = code.lex();
     if lex {
-        println!("{:#?}", toks.collect::<Vec<_>>());
+        println!("{:#?}", toks.collect::<Result<Vec<_>>>()?);
         return Ok(());
     }
 

@@ -60,4 +60,5 @@ pub enum Token {
     Switch,
     Case,
     Default,
+    Comma,
 }
