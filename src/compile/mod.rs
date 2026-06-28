@@ -8,7 +8,7 @@ mod tacky;
 use super::error::Result;
 use asm_gen::asm_gen;
 use code_emission::code_emission;
-use lexer::lexer;
+use lexer::Lex;
 use parser::parser;
 use semantic_analysis::semantic_analysis;
 use std::io::Write;
@@ -16,16 +16,16 @@ use tacky::tacky_gen;
 
 pub(crate) fn compile(
     writer: &mut impl Write,
-    code: &str,
+    code: String,
     lex: bool,
     parse: bool,
     codegen: bool,
     tacky: bool,
     validate: bool,
 ) -> Result<()> {
-    let toks = lexer(code)?;
+    let toks = code.lex();
     if lex {
-        println!("{:#?}", toks);
+        println!("{:#?}", toks.collect::<Vec<_>>());
         return Ok(());
     }
 

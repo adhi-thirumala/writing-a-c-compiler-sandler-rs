@@ -3,7 +3,7 @@ use thiserror::Error;
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub(crate) enum Error {
     #[error("Lexer error failed: char {char}")]
     LexerError { char: char },
@@ -21,11 +21,11 @@ pub(crate) enum Error {
     CodeEmissionError(&'static str),
 
     #[error("IO error: {0}")]
-    Io(io::Error),
+    Io(String),
 }
 
 impl From<io::Error> for Error {
     fn from(value: io::Error) -> Self {
-        Error::Io(value)
+        Error::Io(value.to_string())
     }
 }

@@ -1,176 +1,22 @@
-use itertools::PeekNth;
+mod types;
+
 use itertools::peek_nth;
 
+use super::lexer::Lexer;
 use crate::compile::lexer::Token;
 use crate::error::{Error, Result};
 
-type TokenStream = PeekNth<std::vec::IntoIter<Token>>;
-
-#[derive(Debug)]
-pub(super) enum Program {
-    Program(FunctionDefinition),
-}
-
-#[derive(Debug)]
-pub(super) enum FunctionDefinition {
-    Function { name: String, body: Block },
-}
-
-#[derive(Debug)]
-pub(super) enum BlockItem {
-    S(Statement),
-    D(Declaration),
-}
-
-#[derive(Debug)]
-pub(super) enum Block {
-    Block(Vec<BlockItem>),
-}
-
-#[derive(Debug)]
-pub(super) enum Statement {
-    Return(Expression),
-    Expression(Expression),
-    If {
-        condition: Expression,
-        then_statement: Box<Statement>,
-        else_statement: Option<Box<Statement>>,
-    },
-    Compound(Block),
-    Goto(String),
-    Label {
-        label: String,
-        body: Box<Statement>,
-    },
-    Break(Option<String>),
-    Continue(Option<String>),
-    While {
-        condition: Expression,
-        body: Box<Statement>,
-        label: Option<String>,
-    },
-    DoWhile {
-        condition: Expression,
-        body: Box<Statement>,
-        label: Option<String>,
-    },
-    For {
-        init: ForInit,
-        condition: Option<Expression>,
-        post: Option<Expression>,
-        body: Box<Statement>,
-        label: Option<String>,
-    },
-    Switch {
-        condition: Expression,
-        body: Box<Statement>,
-        label: Option<String>,
-        case_expressions: Vec<i32>, //label values (when we fold, fill this after we fold)
-        default: bool,
-    },
-    Case {
-        condition: Expression,
-        body: Box<Statement>,
-        label: Option<String>,
-    },
-    Default {
-        body: Box<Statement>,
-        label: Option<String>,
-    },
-    Null,
-}
-
-#[derive(Debug)]
-pub(super) enum ForInit {
-    InitDecl(Declaration),
-    InitExp(Option<Expression>),
-}
-
-#[derive(Debug)]
-pub(super) enum Declaration {
-    Declaration {
-        name: String,
-        init: Option<Expression>,
-    },
-}
-
-#[derive(Debug)]
-pub(super) enum Expression {
-    IntConstant(i32),
-    Unary {
-        unary_operator: UnaryOperator,
-        expression: Box<Expression>,
-    },
-    Binary {
-        binary_operator: BinaryOperator,
-        left_expression: Box<Expression>,
-        right_expression: Box<Expression>,
-    },
-    Var(String),
-    Assignment {
-        left_expression: Box<Expression>,
-        right_expression: Box<Expression>,
-        operator: Option<BinaryOperator>,
-    },
-    Postfix {
-        postfix_operator: PostfixOperator,
-        expression: Box<Expression>,
-    },
-    Conditional {
-        condition: Box<Expression>,
-        true_case: Box<Expression>,
-        false_case: Box<Expression>,
-    },
-}
-
-#[derive(Debug)]
-pub(super) enum PostfixOperator {
-    Increment,
-    Decrement,
-}
-
-#[derive(Debug)]
-pub(super) enum UnaryOperator {
-    Complement,
-    Negate,
-    Not,
-    Increment,
-    Decrement,
-}
-
-#[derive(Debug)]
-pub(super) enum BinaryOperator {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Remainder,
-    BitwiseAnd,
-    BitwiseOr,
-    BitwiseXor,
-    LeftShift,
-    RightShift,
-    And,
-    Or,
-    Equal,
-    NotEqual,
-    LessThan,
-    Leq,
-    GreaterThan,
-    Geq,
-    Assigmnent,
-    CompoundAssignment(Box<BinaryOperator>),
-    Ternary,
-}
+pub use types::*;
 
 macro_rules! expect {
     ($iter:expr, $pat:pat => $val:expr) => {
         match $iter.next() {
-            Some($pat) => Ok($val),
-            Some(other) => Err(Error::ParserError {
+            Some(Ok($pat)) => Ok($val),
+            Some(Ok(other)) => Err(Error::ParserError {
                 expected: stringify!($pat).to_string(),
                 found: other.to_string(),
             }),
+            Some(Err(e)) => Err(e),
             None => Err(Error::ParserError {
                 expected: stringify!($pat).to_string(),
                 found: "end of file".to_string(),
@@ -182,10 +28,10 @@ macro_rules! expect {
 macro_rules! parse_optional_expression {
     ($iter:expr, $pat:pat) => {
         match $iter.peek() {
-            Some($pat) => {
+            Some(Ok($pat)) => {
                 $iter.next();
                 None // if we find the symbol first, then no expression
-            }
+            },
             Some(_) | None =>  {
                 let expression = parse_expression($iter, 0)?;
                 expect!($iter, $pat => ())?;
@@ -195,14 +41,35 @@ macro_rules! parse_optional_expression {
     };
 }
 
-pub(super) fn parser(toks: Vec<Token>) -> Result<Program> {
-    let mut iter = peek_nth(toks.into_iter());
+macro_rules! peek {
+    ($iter:expr) => {
+        match $iter.peek() {
+            Some(Ok(e)) => Some(e),
+            Some(Err(e)) => return Err(e.clone()),
+            None => None,
+        }
+    };
+}
+
+macro_rules! peek_nth {
+    ($iter:expr, $n:expr) => {
+        match $iter.peek_nth($n) {
+            Some(Ok(e)) => Some(e),
+            Some(Err(e)) => return Err(e.clone()),
+            None => None,
+        }
+    };
+}
+
+pub(super) fn parser(toks: Lexer) -> Result<Program> {
+    let mut iter = peek_nth(toks);
     let program = parse_program(&mut iter)?;
     match iter.next() {
-        Some(tok) => Err(Error::ParserError {
+        Some(Ok(tok)) => Err(Error::ParserError {
             expected: "nothing, end of file".to_string(),
             found: tok.to_string(),
         }),
+        Some(Err(e)) => Err(e),
         None => Ok(program),
     }
 }
@@ -225,15 +92,15 @@ fn parse_function(iter: &mut TokenStream) -> Result<FunctionDefinition> {
 fn parse_block(iter: &mut TokenStream) -> Result<Block> {
     expect!(iter, Token::OpenBrace => ())?;
     let mut block = Vec::new();
-    while !matches!(iter.peek(), Some(Token::ClosedBrace)) {
+    while !matches!(peek!(iter), Some(Token::ClosedBrace)) {
         block.push(parse_block_item(iter)?);
     }
-    iter.next(); //we checked that iter.peek() is closed brace here
+    iter.next(); //we checked that peek!(iter) is closed brace here
     Ok(Block::Block(block))
 }
 
 fn parse_block_item(iter: &mut TokenStream) -> Result<BlockItem> {
-    if let Some(Token::Int) = iter.peek() {
+    if let Some(Token::Int) = peek!(iter) {
         Ok(BlockItem::D(parse_declaration(iter)?))
     } else {
         Ok(BlockItem::S(parse_statement(iter)?))
@@ -243,7 +110,7 @@ fn parse_block_item(iter: &mut TokenStream) -> Result<BlockItem> {
 fn parse_declaration(iter: &mut TokenStream) -> Result<Declaration> {
     expect!(iter, Token::Int => ())?;
     let identifier = expect!(iter, Token::Identifier(id) => id)?;
-    let init = if let Some(Token::Equal) = iter.peek() {
+    let init = if let Some(Token::Equal) = peek!(iter) {
         iter.next();
         Some(parse_expression(iter, 0)?)
     } else {
@@ -257,7 +124,7 @@ fn parse_declaration(iter: &mut TokenStream) -> Result<Declaration> {
 }
 
 fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
-    match iter.peek() {
+    match peek!(iter) {
         Some(Token::Return) => {
             iter.next();
             let expression = parse_expression(iter, 0)?;
@@ -274,7 +141,7 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
             let condition = parse_expression(iter, 0)?;
             expect!(iter, Token::ClosedParenthesis => ())?;
             let then_statement = Box::new(parse_statement(iter)?);
-            let else_statement = if let Some(Token::Else) = iter.peek() {
+            let else_statement = if let Some(Token::Else) = peek!(iter) {
                 iter.next();
                 Some(Box::new(parse_statement(iter)?))
             } else {
@@ -295,9 +162,9 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
         Some(Token::OpenBrace) => Ok(Statement::Compound(parse_block(iter)?)),
         Some(Token::Identifier(_)) => {
             //check if the next one is a colon, else just parse expression
-            match iter.peek_nth(1) {
+            match peek_nth!(iter, 1) {
                 Some(Token::Colon) => {
-                    let Some(Token::Identifier(label)) = iter.next() else {
+                    let Some(Ok(Token::Identifier(label))) = iter.next() else {
                         unreachable!("alr verified above")
                     };
                     iter.next();
@@ -406,7 +273,7 @@ fn parse_statement(iter: &mut TokenStream) -> Result<Statement> {
 }
 
 fn parse_for_init(iter: &mut TokenStream) -> Result<ForInit> {
-    match iter.peek() {
+    match peek!(iter) {
         Some(Token::Int) => Ok(ForInit::InitDecl(parse_declaration(iter)?)),
         Some(_) | None => {
             let expression = parse_optional_expression!(iter, Token::Semicolon);
@@ -437,7 +304,7 @@ fn parse_expression(iter: &mut TokenStream, min_precedence: i64) -> Result<Expre
             };
         } else if let BinaryOperator::Ternary = binop {
             let middle = parse_expression(iter, 0)?;
-            if let Some(Token::Colon) = iter.peek() {
+            if let Some(Token::Colon) = peek!(iter) {
                 iter.next();
                 let right = parse_expression(iter, curr_precedence)?;
                 left = Expression::Conditional {
@@ -448,9 +315,7 @@ fn parse_expression(iter: &mut TokenStream, min_precedence: i64) -> Result<Expre
             } else {
                 return Err(Error::ParserError {
                     expected: "colon".to_string(),
-                    found: iter
-                        .peek()
-                        .map_or("end of string".to_string(), |tok| tok.to_string()),
+                    found: peek!(iter).map_or("end of string".to_string(), |tok| tok.to_string()),
                 });
             }
         } else {
@@ -465,7 +330,7 @@ fn parse_expression(iter: &mut TokenStream, min_precedence: i64) -> Result<Expre
 }
 
 fn parse_factor(iter: &mut TokenStream) -> Result<Expression> {
-    match iter.peek().ok_or_else(|| Error::ParserError {
+    match peek!(iter).ok_or_else(|| Error::ParserError {
         expected: "factor".to_string(),
         found: "end of string".to_string(),
     })? {
@@ -479,7 +344,7 @@ fn parse_factor(iter: &mut TokenStream) -> Result<Expression> {
         Token::Identifier(id) => {
             let id = id.clone();
             iter.next();
-            let next = iter.peek();
+            let next = peek!(iter);
             if let Some(Token::DoublePlus) = next {
                 iter.next();
                 Ok(Expression::Postfix {
@@ -500,7 +365,7 @@ fn parse_factor(iter: &mut TokenStream) -> Result<Expression> {
             iter.next();
             let inner = parse_expression(iter, 0)?;
             expect!(iter, Token::ClosedParenthesis => ())?;
-            let next = iter.peek();
+            let next = peek!(iter);
             if let Some(Token::DoublePlus) = next {
                 iter.next();
                 Ok(Expression::Postfix {
@@ -535,7 +400,7 @@ fn parse_factor(iter: &mut TokenStream) -> Result<Expression> {
 }
 
 fn parse_unary(iter: &mut TokenStream) -> Result<UnaryOperator> {
-    match iter.next() {
+    let op = match peek!(iter) {
         Some(Token::Hyphen) => Ok(UnaryOperator::Negate),
         Some(Token::Tilde) => Ok(UnaryOperator::Complement),
         Some(Token::Exclamation) => Ok(UnaryOperator::Not),
@@ -549,11 +414,13 @@ fn parse_unary(iter: &mut TokenStream) -> Result<UnaryOperator> {
             expected: "beginning of unary expression".to_string(),
             found: "end of string".to_string(),
         }),
-    }
+    };
+    iter.next();
+    op
 }
 
 fn parse_binary(iter: &mut TokenStream) -> Result<BinaryOperator> {
-    match iter.peek() {
+    match peek!(iter) {
         Some(Token::Hyphen) => Ok(BinaryOperator::Subtract),
         Some(Token::Plus) => Ok(BinaryOperator::Add),
         Some(Token::Asterisk) => Ok(BinaryOperator::Multiply),

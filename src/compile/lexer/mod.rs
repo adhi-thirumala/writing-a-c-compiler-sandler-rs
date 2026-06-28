@@ -1,269 +1,213 @@
+mod tokens;
+
 use crate::error::{Error, Result};
 use regex::Regex;
-use strum_macros::{Display, EnumString};
 
-#[derive(Debug, Display, EnumString)]
-pub(super) enum Token {
-    #[strum(to_string = "Identifier: {0}")]
-    Identifier(String),
-    #[strum(to_string = "Integer Constant: {0}")]
-    IntegerConstant(i32),
-    Int,
-    Void,
-    Return,
-    OpenParenthesis,
-    ClosedParenthesis,
-    OpenBrace,
-    ClosedBrace,
-    Semicolon,
-    Tilde,
-    Hyphen,
-    Plus,
-    Asterisk,
-    ForwardSlash,
-    Percent,
-    Ampersand,
-    Pipe,
-    Carrot,
-    LeftShift,
-    RightShift,
-    Exclamation,
-    DoubleAmpersand,
-    DoublePipe,
-    DoubleEqual,
-    NotEqual,
-    LessThan,
-    GreaterThan,
-    Leq,
-    Geq,
-    Equal,
-    PlusEqual,
-    MinusEqual,
-    AsteriskEqual,
-    ForwardSlashEqual,
-    PercentEqual,
-    AmpersandEqual,
-    PipeEqual,
-    CarrotEqual,
-    LtLtEqual,
-    GtGtEqual,
-    DoubleHyphen,
-    DoublePlus,
-    If,
-    Else,
-    QuestionMark,
-    Colon,
-    Goto,
-    Do,
-    While,
-    For,
-    Break,
-    Continue,
-    Switch,
-    Case,
-    Default,
+pub use tokens::Token;
+
+pub(super) trait Lex {
+    fn lex(self) -> Lexer;
 }
 
-pub(super) fn lexer(mut input: &str) -> Result<Vec<Token>> {
-    let mut toks = Vec::new();
+pub(super) struct Lexer {
+    input: String,
+    pos: usize,
+    id: Regex,
+    cnst: Regex,
+}
 
-    //initialize all regexes
-    let id_regex = Regex::new(r"^[a-zA-Z_]\w*\b").expect("failed to compile identifier regex");
-    let const_regex = Regex::new(r"^[0-9]+\b").expect("failed to compile constant regex");
-
-    input = input.trim_start();
-    while !input.is_empty() {
-        let tok = id_regex.find(input);
-        match tok {
-            Some(m) => {
-                // all keywords
-                toks.push(match m.as_str() {
-                    "if" => Token::If,
-                    "do" => Token::Do,
-                    "while" => Token::While,
-                    "for" => Token::For,
-                    "break" => Token::Break,
-                    "continue" => Token::Continue,
-                    "int" => Token::Int,
-                    "goto" => Token::Goto,
-                    "else" => Token::Else,
-                    "void" => Token::Void,
-                    "return" => Token::Return,
-                    "switch" => Token::Switch,
-                    "case" => Token::Case,
-                    "default" => Token::Default,
-                    s => Token::Identifier(s.to_string()),
-                });
-                input = &input[m.len()..];
-                input = input.trim_start();
-                continue;
-            }
-            None => (),
+impl Lexer {
+    fn new(input: String) -> Self {
+        Lexer {
+            input,
+            id: Regex::new(r"^[a-zA-Z_]\w*\b").expect("this is constant, will work"),
+            cnst: Regex::new(r"^[0-9]+\b").expect("this is constant"),
+            pos: 0,
         }
-
-        let tok = const_regex.find(input);
-        match tok {
-            Some(m) => {
-                toks.push(Token::IntegerConstant(m.as_str().parse().expect(
-                    "regex mandates this is an int so it must be overflow if not",
-                )));
-                input = &input[m.len()..];
-                input = input.trim_start();
-                continue;
-            }
-            None => (),
-        }
-
-        // all 1 char toks - if we're here, we've failed to match all longer possibilities, there
-        // next character MUST be a non alphanumeric or underscore char
-        // cant be multiple tying 1 char regexes
-        let mut length = 1;
-        toks.push(
-            match &input
-                .chars()
-                .nth(0)
-                .expect("string cant be empty, alr checked")
-            {
-                '(' => Token::OpenParenthesis,
-                ')' => Token::ClosedParenthesis,
-                '{' => Token::OpenBrace,
-                '}' => Token::ClosedBrace,
-                ';' => Token::Semicolon,
-                '-' => match &input.chars().nth(1) {
-                    Some('-') => {
-                        length = 2;
-                        Token::DoubleHyphen
-                    }
-                    Some('=') => {
-                        length = 2;
-                        Token::MinusEqual
-                    }
-                    Some(_) | None => Token::Hyphen,
-                },
-                '~' => Token::Tilde,
-                '+' => match &input.chars().nth(1) {
-                    Some('+') => {
-                        length = 2;
-                        Token::DoublePlus
-                    }
-                    Some('=') => {
-                        length = 2;
-                        Token::PlusEqual
-                    }
-                    Some(_) | None => Token::Plus,
-                },
-                '*' => match &input.chars().nth(1) {
-                    Some('=') => {
-                        length = 2;
-                        Token::AsteriskEqual
-                    }
-                    Some(_) | None => Token::Asterisk,
-                },
-                '/' => match &input.chars().nth(1) {
-                    Some('=') => {
-                        length = 2;
-                        Token::ForwardSlashEqual
-                    }
-                    Some(_) | None => Token::ForwardSlash,
-                },
-                '%' => match &input.chars().nth(1) {
-                    Some('=') => {
-                        length = 2;
-                        Token::PercentEqual
-                    }
-                    Some(_) | None => Token::Percent,
-                },
-
-                '&' => match &input.chars().nth(1) {
-                    Some('&') => {
-                        length = 2;
-                        Token::DoubleAmpersand
-                    }
-                    Some('=') => {
-                        length = 2;
-                        Token::AmpersandEqual
-                    }
-                    Some(_) | None => Token::Ampersand,
-                },
-                '|' => match &input.chars().nth(1) {
-                    Some('|') => {
-                        length = 2;
-                        Token::DoublePipe
-                    }
-                    Some('=') => {
-                        length = 2;
-                        Token::PipeEqual
-                    }
-                    Some(_) | None => Token::Pipe,
-                },
-                '^' => match &input.chars().nth(1) {
-                    Some('=') => {
-                        length = 2;
-                        Token::CarrotEqual
-                    }
-                    Some(_) | None => Token::Carrot,
-                },
-
-                '>' => match &input.chars().nth(1) {
-                    Some('>') => match &input.chars().nth(2) {
-                        Some('=') => {
-                            length = 3;
-                            Token::GtGtEqual
-                        }
-                        Some(_) | None => {
-                            length = 2;
-                            Token::RightShift
-                        }
-                    },
-                    Some('=') => {
-                        length = 2;
-                        Token::Geq
-                    }
-                    Some(_) | None => Token::GreaterThan,
-                },
-                '<' => match &input.chars().nth(1) {
-                    Some('<') => match &input.chars().nth(2) {
-                        Some('=') => {
-                            length = 3;
-                            Token::LtLtEqual
-                        }
-                        Some(_) | None => {
-                            length = 2;
-                            Token::LeftShift
-                        }
-                    },
-                    Some('=') => {
-                        length = 2;
-                        Token::Leq
-                    }
-                    Some(_) | None => Token::LessThan,
-                },
-                '!' => match &input.chars().nth(1) {
-                    Some('=') => {
-                        length = 2;
-                        Token::NotEqual
-                    }
-                    Some(_) | None => Token::Exclamation,
-                },
-                '=' => match &input.chars().nth(1) {
-                    Some('=') => {
-                        length = 2;
-                        Token::DoubleEqual
-                    }
-                    Some(_) | None => Token::Equal,
-                },
-                '?' => Token::QuestionMark,
-                ':' => Token::Colon,
-                c => {
-                    return Err(Error::LexerError { char: *c });
-                }
-            },
-        );
-        input = &input[length..];
-        input = input.trim_start();
-        //keeping it at the end allows us to trim, and then immediately
-        //check for emptiness such that empty strings dont cause lexer
-        //error
     }
-    Ok(toks)
+
+    fn trim(&mut self) {
+        while self.pos < self.input.len()
+            && self
+                .input
+                .chars()
+                .nth(self.pos)
+                .expect("already bounds checked")
+                .is_whitespace()
+        {
+            self.pos += 1
+        }
+    }
+
+    fn next_keyword(&self) -> Option<(Token, usize)> {
+        match self.id.find(&self.input[self.pos..]) {
+            Some(m) => {
+                let str = m.as_str();
+                // all keywords
+                Some((
+                    match str {
+                        "if" => Token::If,
+                        "do" => Token::Do,
+                        "while" => Token::While,
+                        "for" => Token::For,
+                        "break" => Token::Break,
+                        "continue" => Token::Continue,
+                        "int" => Token::Int,
+                        "goto" => Token::Goto,
+                        "else" => Token::Else,
+                        "void" => Token::Void,
+                        "return" => Token::Return,
+                        "switch" => Token::Switch,
+                        "case" => Token::Case,
+                        "default" => Token::Default,
+                        s => Token::Identifier(s.to_string()),
+                    },
+                    self.pos + str.len(),
+                ))
+            }
+            None => None,
+        }
+    }
+
+    fn next_constant(&self) -> Option<(Token, usize)> {
+        match self.cnst.find(&self.input[self.pos..]) {
+            Some(m) => {
+                let str = m.as_str();
+                Some((
+                    Token::IntegerConstant(
+                        str.parse::<i32>()
+                            .expect("numbers are not bigger than i32 raw"),
+                    ),
+                    self.pos + str.len(),
+                ))
+            }
+            None => None,
+        }
+    }
+
+    fn next_operator(&self) -> Result<(Token, usize)> {
+        let mut iter = self.input.chars();
+        let first_char = iter.nth(self.pos).expect("string checked to be non empty");
+        let second_char = iter.nth(0);
+        let third_char = iter.nth(0);
+        let new_size_1 = self.pos + 1;
+        let new_size_2 = self.pos + 2;
+        let new_size_3 = self.pos + 3;
+        Ok(match first_char {
+            '(' => (Token::OpenParenthesis, new_size_1),
+            ')' => (Token::ClosedParenthesis, new_size_1),
+            '{' => (Token::OpenBrace, new_size_1),
+            '}' => (Token::ClosedBrace, new_size_1),
+            ';' => (Token::Semicolon, new_size_1),
+            '?' => (Token::QuestionMark, new_size_1),
+            ':' => (Token::Colon, new_size_1),
+            '~' => (Token::Tilde, new_size_1),
+            '-' => match second_char {
+                Some('-') => (Token::DoubleHyphen, new_size_2),
+                Some('=') => (Token::MinusEqual, new_size_2),
+                Some(_) | None => (Token::Hyphen, new_size_1),
+            },
+            '+' => match second_char {
+                Some('+') => (Token::DoublePlus, new_size_2),
+                Some('=') => (Token::PlusEqual, new_size_2),
+                Some(_) | None => (Token::Plus, new_size_1),
+            },
+            '*' => match second_char {
+                Some('=') => (Token::AsteriskEqual, new_size_2),
+                Some(_) | None => (Token::Asterisk, new_size_1),
+            },
+            '/' => match second_char {
+                Some('=') => (Token::ForwardSlashEqual, new_size_2),
+                Some(_) | None => (Token::ForwardSlash, new_size_1),
+            },
+            '%' => match second_char {
+                Some('=') => (Token::PercentEqual, new_size_2),
+                Some(_) | None => (Token::Percent, new_size_1),
+            },
+
+            '&' => match second_char {
+                Some('&') => (Token::DoubleAmpersand, new_size_2),
+                Some('=') => (Token::AmpersandEqual, new_size_2),
+                Some(_) | None => (Token::Ampersand, new_size_1),
+            },
+            '|' => match second_char {
+                Some('|') => (Token::DoublePipe, new_size_2),
+                Some('=') => (Token::PipeEqual, new_size_2),
+                Some(_) | None => (Token::Pipe, new_size_1),
+            },
+            '^' => match second_char {
+                Some('=') => (Token::CarrotEqual, new_size_2),
+                Some(_) | None => (Token::Carrot, new_size_1),
+            },
+
+            '>' => match second_char {
+                Some('>') => match third_char {
+                    Some('=') => (Token::GtGtEqual, new_size_3),
+                    Some(_) | None => (Token::RightShift, new_size_2),
+                },
+                Some('=') => (Token::Geq, new_size_2),
+                Some(_) | None => (Token::GreaterThan, new_size_1),
+            },
+            '<' => match second_char {
+                Some('<') => match third_char {
+                    Some('=') => (Token::LtLtEqual, new_size_3),
+                    Some(_) | None => (Token::LeftShift, new_size_2),
+                },
+                Some('=') => (Token::Leq, new_size_2),
+                Some(_) | None => (Token::LessThan, new_size_1),
+            },
+            '!' => match second_char {
+                Some('=') => (Token::NotEqual, new_size_2),
+                Some(_) | None => (Token::Exclamation, new_size_1),
+            },
+            '=' => match second_char {
+                Some('=') => (Token::DoubleEqual, new_size_2),
+                Some(_) | None => (Token::Equal, new_size_1),
+            },
+            c => {
+                return Err(Error::LexerError { char: c });
+            }
+        })
+    }
+}
+
+impl Iterator for Lexer {
+    type Item = Result<Token>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.trim();
+        if self.pos >= self.input.len() {
+            return None;
+        }
+
+        match self.next_keyword() {
+            Some((token, pos)) => {
+                self.pos = pos;
+                return Some(Ok(token));
+            }
+            None => (),
+        };
+
+        match self.next_constant() {
+            Some((token, pos)) => {
+                self.pos = pos;
+                return Some(Ok(token));
+            }
+            None => (),
+        };
+
+        match self.next_operator() {
+            Ok((token, pos)) => {
+                self.pos = pos;
+                Some(Ok(token))
+            }
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
+
+impl Lex for String {
+    fn lex(self) -> Lexer {
+        Lexer::new(self)
+    }
 }

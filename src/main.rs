@@ -1,13 +1,15 @@
 mod compile;
 mod error;
 use std::{
-    fs::{self, File},
+    fs::{File, read_to_string, remove_file},
     io::{BufWriter, Write, stderr},
     path::Path,
     process::{Command, exit},
 };
 
 use clap::Parser;
+
+use crate::compile::compile;
 
 #[derive(Parser, Debug)]
 struct Cli {
@@ -53,26 +55,26 @@ fn main() {
     }
 
     //actually call compiler
-    let code = fs::read_to_string(stem.with_extension("i"))
+    let code = read_to_string(stem.with_extension("i"))
         .expect("failed to read intermediate post processing file");
+
     //we can remove immedaitely since its in memory
-    let _ = fs::remove_file(stem.with_extension("i"));
+    let _ = remove_file(stem.with_extension("i"));
+
     let mut asm_file_writer =
         BufWriter::new(File::create(stem.with_extension("s")).expect("failed to create asm file"));
-    let compile = compile::compile(
+    match compile(
         &mut asm_file_writer,
-        &code,
+        code,
         cli.lex,
         cli.parse,
         cli.codegen,
         cli.tacky,
         cli.validate,
-    );
-    //dont care if removing fails
-    match compile {
+    ) {
         Ok(_) => (),
         Err(e) => {
-            let _ = fs::remove_file(stem.with_extension("s"));
+            let _ = remove_file(stem.with_extension("s"));
             eprintln!("{}", e.to_string());
             exit(1)
         }
@@ -86,7 +88,7 @@ fn main() {
             .arg(&stem)
             .output()
             .expect("failed to execute assembler and linker");
-        let _ = fs::remove_file(stem.with_extension("s"));
+        let _ = remove_file(stem.with_extension("s"));
         if !assemble.status.success() {
             stderr()
                 .write_all(&assemble.stderr)
@@ -94,6 +96,6 @@ fn main() {
             exit(1);
         }
     } else if !cli.s {
-        let _ = fs::remove_file(stem.with_extension("s"));
+        let _ = remove_file(stem.with_extension("s"));
     }
 }
